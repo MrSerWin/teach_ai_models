@@ -52,7 +52,14 @@ models/<exp-id>/        ◀── rsync ───    final_model/ + metrics.json
    Stop-Service sshd -ErrorAction SilentlyContinue
    Set-Service -Name sshd -StartupType Manual -ErrorAction SilentlyContinue
    ```
-   Note: WSL IP changes on every Windows reboot — re-run the `netsh portproxy` command with the new IP, or automate via Task Scheduler.
+   **WSL IP changes on every Windows reboot** — you can automate the re-binding. Copy [scripts/windows/](scripts/windows/) to the Windows box and run from elevated PowerShell **once**:
+   ```powershell
+   .\install-portproxy-task.ps1
+   ```
+   This registers [update-portproxy.ps1](scripts/windows/update-portproxy.ps1) as a Task Scheduler job that fires on every system start — the port-forward self-heals from then on. To refresh ad-hoc (e.g. after restarting WSL without a reboot), run:
+   ```powershell
+   .\update-portproxy.ps1
+   ```
 
 4. **Keep WSL alive** (by default WSL shuts down when idle and sshd dies with it):
    ```powershell
