@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Pre-commit hook: sanity-check shell + python before the commit lands.
+# Install once per clone:  git config core.hooksPath .githooks
+set -e
+
+fail=0
+
+# Bash syntax-check every staged *.sh under version control.
+while IFS= read -r -d '' f; do
+  if ! bash -n "$f"; then
+    echo "  [pre-commit] bash syntax error: $f" >&2
+    fail=1
+  fi
+done < <(git diff --cached --name-only --diff-filter=AM -z | grep -z '\.sh$' || true)
+
+# Optional: if shellcheck is installed, run it on staged shell files too.
+if command -v shellcheck >/dev/null 2>&1; then
+  while IFS= read -r -d '' f; do
+    # --severity=warning: don't block on style suggestions
+    shellcheck -S warning "$f" || fail=1
+  done < <(git diff --cached --name-only --diff-filter=AM -z | grep -z '\.sh$' || true)
+fi
+
+# Python syntax-check.
+if command -v python3 >/dev/null 2>&1; then
+  while IFS= read -r -d '' f; do
+    if ! python3 -c "import ast; ast.parse(open('$f').read())"; then
+      echo "  [pre-commit] python syntax error: $f" >&2
+      fail=1
+    fi
+  done < <(git diff --cached --name-only --diff-filter=AM -z | grep -z '\.py$' || true)
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo "[pre-commit] aborting commit — fix the errors above." >&2
+  exit 1
+fi
