@@ -108,6 +108,19 @@ models/<exp-id>/        ◀── rsync ───    final_model/ + metrics.json
 | `REMOTE_DATASETS_DIR` | `/mnt/d/datasets` | Where `push-data.sh` uploads dataset folders                  |
 | `BASE_CONDA_ENV`   | `ml_base`         | Pre-configured conda env that every experiment clones           |
 | `LOCAL_MODELS_DIR` | `./models`       | Where fetched final models land on Mac                          |
+| `NOTIFY_MACOS`     | `1` on Darwin    | macOS notification after submit finishes. Set `0` to disable    |
+| `NTFY_TOPIC`       | —                | If set, POST notifications to `https://ntfy.sh/<topic>`         |
+| `NTFY_SERVER`      | `https://ntfy.sh` | Override for a self-hosted ntfy instance                       |
+| `MIN_FREE_GIB`     | `5`              | Warn + confirm before submit if remote free space is below this |
+
+### Multi-host
+
+Put alternate host configs in `.env.hosts/<name>.env` and switch with the `HOST` env var:
+```bash
+HOST=gpu-rig-2 ./scripts/submit.sh experiments/foo
+HOST=laptop    ./scripts/list.sh
+```
+`.env.hosts/*.env` is gitignored — safe for private LAN addresses/users.
 
 ## Scripts
 
@@ -121,7 +134,9 @@ Every script that targets a specific run accepts `[exp-id]` as an argument; if o
 ./scripts/submit.sh <experiment-dir>            # submit and follow logs live
 ./scripts/submit.sh -d <experiment-dir>         # submit and return immediately
 ./scripts/submit.sh --resume <exp-id>           # reuse an existing exp-id + conda env + checkpoints
-./scripts/submit.sh --resume <exp-id> <src-dir> # explicit source dir if auto-infer fails
+./scripts/submit.sh --gpu 0 <experiment-dir>    # pin to GPU 0 (CUDA_VISIBLE_DEVICES)
+./scripts/submit.sh --gpu 0,1 <experiment-dir>  # multi-GPU
+./scripts/submit.sh --queue <experiment-dir>    # wait behind any running job on the same GPU
 ```
 
 **Resume** reuses the same remote dir and conda env. Your `train.py` should check `<output-dir>/checkpoints/` on startup and pick up the latest — all 3 example scripts implement this pattern. After a crash, OOM, or forced cancel, running `--resume <exp-id>` continues from the last saved epoch.
@@ -174,6 +189,53 @@ Only downloads `final_model/`, `metrics.json`, `config.yaml`, `train.log`, `stat
 ```
 
 Kills the `train-<exp-id>` tmux session on the remote and writes `cancelled` into `status`. Does not delete anything — files and conda env remain so you can inspect. To fully remove, follow with `clean.sh`.
+
+### [`shell.sh`](scripts/shell.sh) — open a shell on the remote
+
+```bash
+./scripts/shell.sh                  # attach to latest run's tmux session
+./scripts/shell.sh <exp-id>         # same, specific run
+./scripts/shell.sh --free           # plain interactive shell in $REMOTE_RUNS_DIR
+```
+
+Use `Ctrl-b d` to detach from tmux without killing training.
+
+### [`tensorboard.sh`](scripts/tensorboard.sh) — live TB in browser
+
+```bash
+./scripts/tensorboard.sh                # latest run, localhost:6006
+./scripts/tensorboard.sh <exp-id> -p 6007
+```
+
+Starts TensorBoard in the experiment's conda env and forwards the port to Mac. `Ctrl-C` tears it all down. Requires `tensorboard` in the cloned env (install via a `requirements.txt` line or `conda run -n <env> pip install tensorboard`).
+
+### [`diff.sh`](scripts/diff.sh) — compare two fetched experiments
+
+```bash
+./scripts/diff.sh <exp-id-a> <exp-id-b>
+```
+
+Side-by-side: unified diff of `config.yaml`, final metrics with numeric deltas, git commits. Both experiments must already be fetched to `$LOCAL_MODELS_DIR`.
+
+### [`gc.sh`](scripts/gc.sh) — garbage-collect stale runs
+
+```bash
+./scripts/gc.sh                                      # 30d default, interactive
+./scripts/gc.sh --older-than 7d --only-done
+./scripts/gc.sh --older-than 12h --dry-run           # preview only
+./scripts/gc.sh --older-than 30d -y                  # automated
+```
+
+Lists remote experiments older than the threshold and cleans them via `clean.sh` (conda env + run dir). Threshold supports `Nd`/`Nh`/`Nm`.
+
+### [`submit-docker.sh`](scripts/submit-docker.sh) — Docker-based alternative to `submit.sh`
+
+```bash
+./scripts/submit-docker.sh <experiment-dir>
+./scripts/submit-docker.sh --image my:tag <experiment-dir>
+```
+
+Runs training in a Docker container (using `docker/Dockerfile`) with `--gpus all`. Requires `nvidia-container-toolkit` on the WSL box — see the script header. An experiment can BYO Dockerfile by placing one at the experiment root.
 
 ### [`push-data.sh`](scripts/push-data.sh) — upload a dataset folder
 
@@ -299,10 +361,94 @@ The `exp-id` takes the basename of that folder. Contents get rsynced except `__p
 
 **Windows → Mac** (`fetch`): only `final_model/`, `metrics.json`, `config.yaml`, `train.log`, `status`. Everything else (checkpoints, optimizer state, tb logs, pip caches, the conda env itself) stays on Windows.
 
+## Recipes — common workflows
+
+### Quick smoke-test of the whole pipeline
+```bash
+./scripts/submit.sh experiments/01_mnist_builtin        # ~1–2 min, no data upload
+```
+
+### Resume a crashed / OOM-killed run
+```bash
+./scripts/list.sh                                        # find the exp-id of the failed run
+./scripts/submit.sh --resume <exp-id>                    # picks up from last saved epoch
+```
+
+### Run two experiments on one GPU sequentially (FIFO)
+```bash
+./scripts/submit.sh -d --queue experiments/exp_a
+./scripts/submit.sh -d --queue experiments/exp_b
+./scripts/list.sh                                        # both 'queued' initially
+```
+The first to arrive at the lock runs; the second waits (`state: queued` → `running` → `done`). Add `--gpu 0`/`--gpu 1` to target different cards — each GPU has its own lock.
+
+### Run two experiments in parallel on separate GPUs
+```bash
+./scripts/submit.sh -d --gpu 0 experiments/exp_a
+./scripts/submit.sh -d --gpu 1 experiments/exp_b
+```
+
+### Hyperparameter sweep (tiny shell loop)
+```bash
+for lr in 1e-4 3e-4 1e-3; do
+  cp experiments/02_image_folder/config.yaml /tmp/cfg.yaml
+  sed -i '' "s/lr: .*/lr: $lr/" /tmp/cfg.yaml
+  # rsync cfg into a throwaway experiment dir, or use a template…
+  ./scripts/submit.sh -d --queue experiments/02_image_folder
+done
+./scripts/list.sh                                        # watch the queue drain
+```
+
+### Compare two runs
+```bash
+./scripts/fetch.sh <exp-id-a>
+./scripts/fetch.sh <exp-id-b>
+./scripts/diff.sh  <exp-id-a> <exp-id-b>
+```
+
+### See live TB graphs while training
+```bash
+./scripts/submit.sh -d experiments/02_image_folder
+./scripts/tensorboard.sh                                 # open http://localhost:6006
+```
+
+### Free disk space after a batch of runs
+```bash
+./scripts/gc.sh --older-than 7d --only-done --dry-run    # preview
+./scripts/gc.sh --older-than 7d --only-done              # interactive confirm
+```
+
+### Switch between training boxes
+```bash
+# one-time: create .env.hosts/laptop.env and .env.hosts/gpu-rig.env
+HOST=gpu-rig ./scripts/submit.sh experiments/foo
+HOST=laptop  ./scripts/shell.sh --free                    # poke around on the other box
+```
+
+### Push to your phone / watch when training finishes
+```bash
+# in .env:
+#   NTFY_TOPIC=my-private-topic-12345
+# then install the ntfy app, subscribe to the topic:
+./scripts/submit.sh -d experiments/...
+# walk away — when state flips to done/failed you'll get a push
+```
+
+## Contributing
+
+Enable the bundled pre-commit hook once per clone so you don't ship shell/python syntax errors:
+```bash
+git config core.hooksPath .githooks
+```
+It runs `bash -n`, `python3 ast.parse`, and (if installed) `shellcheck -S warning` on staged files.
+
 ## Reliability notes
 
 - Training runs in a detached `tmux` session — SSH disconnects don't kill it.
+- Auto-resume: every example `train.py` restores from `checkpoints/epoch-*.pt` on startup. Pair with `submit.sh --resume <exp-id>` to continue interrupted runs.
 - `rsync --partial --append-verify` resumes interrupted transfers.
 - `ServerAliveInterval=30` keeps idle SSH connections alive.
 - Per-experiment cloned conda env — deps for one experiment can't break another; the base `ml_base` stays pristine.
 - `vmIdleTimeout=-1` in `.wslconfig` prevents WSL (and thus sshd) from suspending.
+- Scheduled task ([scripts/windows/install-portproxy-task.ps1](scripts/windows/install-portproxy-task.ps1)) refreshes the Windows→WSL port forward on every boot so a reboot doesn't break SSH.
+- Every run records its source git commit in `git_info.json` and produces a `MODEL_CARD.md` on fetch — months later you can still tell exactly what code produced a given model.
