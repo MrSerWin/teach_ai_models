@@ -97,8 +97,9 @@ models/<exp-id>/        ◀── rsync ───    final_model/ + metrics.json
 | `WIN_HOST`         | `192.168.1.100`     | IP/hostname of the Windows machine on the LAN                   |
 | `WIN_USER`         | —                | Linux username inside WSL (not the Windows user)                |
 | `WIN_SSH_PORT`     | `22`             | Port exposed via Windows `portproxy`                            |
-| `REMOTE_RUNS_DIR`  | `/mnt/d/runs`    | Where experiment artifacts live on Windows (D: drive via WSL)   |
-| `BASE_CONDA_ENV`   | `ml_base`  | Pre-configured conda env that every experiment clones           |
+| `REMOTE_RUNS_DIR`  | `/mnt/d/runs`     | Where experiment artifacts live on Windows (D: drive via WSL)   |
+| `REMOTE_DATASETS_DIR` | `/mnt/d/datasets` | Where `push-data.sh` uploads dataset folders                  |
+| `BASE_CONDA_ENV`   | `ml_base`         | Pre-configured conda env that every experiment clones           |
 | `LOCAL_MODELS_DIR` | `./models`       | Where fetched final models land on Mac                          |
 
 ## Scripts
@@ -164,6 +165,23 @@ Only downloads `final_model/`, `metrics.json`, `config.yaml`, `train.log`, `stat
 
 Kills the `train-<exp-id>` tmux session on the remote and writes `cancelled` into `status`. Does not delete anything — files and conda env remain so you can inspect. To fully remove, follow with `clean.sh`.
 
+### [`push-data.sh`](scripts/push-data.sh) — upload a dataset folder
+
+```bash
+./scripts/push-data.sh <local-dir> [remote-subdir]
+```
+
+One-off helper to sync a local dataset folder to `$REMOTE_DATASETS_DIR/<remote-subdir>` on Windows. Idempotent: rsync only transfers what changed, so re-running is cheap. If `remote-subdir` is omitted, uses `basename "<local-dir>"`.
+
+Philosophy: data lives on the training box and you reference it by absolute path from `config.yaml` (e.g. `/mnt/d/datasets/my_dataset`). `submit.sh` excludes `data/` from its rsync on purpose — you shouldn't re-upload gigabytes on every run.
+
+```bash
+# one-time: upload the dataset
+./scripts/push-data.sh ~/projects/my_proj/data my_dataset
+# then in experiments/<name>/config.yaml:
+#   dataset_path: /mnt/d/datasets/my_dataset
+```
+
 ### [`clean.sh`](scripts/clean.sh) — remove remote artifacts of an experiment
 
 ```bash
@@ -195,10 +213,27 @@ cat models/<exp-id>/metrics.json
 
 ## Adding your own experiment
 
-Copy `experiments/example/` to `experiments/<my-name>/` and edit:
+Two layouts work:
 
-- `train.py` — honors the `--config <path> --output-dir <path>` contract; writes to `<output-dir>/final_model/` and `<output-dir>/metrics.json`.
-- `config.yaml` — hyperparams. Dataset paths should point to locations on the Windows box (e.g. `/mnt/d/datasets/...`).
+**A. Self-contained under `experiments/`** (default, for quick one-offs):
+
+Copy `experiments/example/` to `experiments/<my-name>/` and edit `train.py`, `config.yaml`, `requirements.txt`. Submit:
+```bash
+./scripts/submit.sh experiments/<my-name>
+```
+
+**B. External project folder** (when training lives inside a larger codebase):
+
+`submit.sh` accepts any absolute path — point it at the folder that contains `train.py` + `config.yaml`:
+```bash
+./scripts/submit.sh /Volumes/T9/1_dev/my_proj/training
+./scripts/submit.sh ~/projects/my_proj/pipelines/train
+```
+The `exp-id` takes the basename of that folder. Everything in the folder gets rsynced except `__pycache__`, `*.pyc`, `.venv`, `data/`, `models/`, `runs/`.
+
+**Contract in both cases:**
+- `train.py` — honors `--config <path> --output-dir <path>`; writes to `<output-dir>/final_model/` and `<output-dir>/metrics.json`.
+- `config.yaml` — hyperparams. Dataset paths should point to locations on the Windows box (e.g. `/mnt/d/datasets/my_dataset`). Upload data once with [`push-data.sh`](scripts/push-data.sh).
 - `requirements.txt` — **optional** extras installed on top of the cloned `$BASE_CONDA_ENV`. Leave empty/commented if the base has everything.
 
 ## What gets synced, what doesn't
