@@ -14,12 +14,14 @@ FOLLOW=1
 RESUME_ID=""
 GPU_IDS=""
 QUEUE=0
+CLONE_ENV=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -d|--detach) FOLLOW=0; shift ;;
     --resume)    RESUME_ID="${2:?--resume needs an exp-id}"; shift 2 ;;
     --gpu)       GPU_IDS="${2:?--gpu needs a device id or comma list}"; shift 2 ;;
     --queue)     QUEUE=1; shift ;;
+    --clone)     CLONE_ENV=1; shift ;;
     --)          shift; break ;;
     -*)          echo "unknown flag: $1" >&2; exit 2 ;;
     *)           break ;;
@@ -48,7 +50,13 @@ if [ -z "$RESUME_ID" ]; then
 fi
 REMOTE_DIR="$REMOTE_RUNS_DIR/$EXP_ID"
 SESSION="train-$EXP_ID"
-CONDA_ENV="$EXP_ID"
+# Default: reuse BASE_CONDA_ENV directly (fast, minimal disk). --clone makes a
+# per-experiment copy for full isolation.
+if [ "$CLONE_ENV" -eq 1 ]; then
+  CONDA_ENV="$EXP_ID"
+else
+  CONDA_ENV="$BASE_CONDA_ENV"
+fi
 
 if [ -n "$RESUME_ID" ]; then
   echo "[submit] resuming exp: $EXP_ID"
@@ -128,15 +136,24 @@ if ! conda env list | awk '{print \$1}' | grep -qx "$BASE_CONDA_ENV"; then
   exit 1
 fi
 
-if ! conda env list | awk '{print \$1}' | grep -qx "$CONDA_ENV"; then
-  echo "[remote] cloning $BASE_CONDA_ENV -> $CONDA_ENV"
-  conda create --yes --name "$CONDA_ENV" --clone "$BASE_CONDA_ENV" >/dev/null
-fi
-
-# Optional extras on top of the clone (only if requirements.txt non-empty non-comment)
-if [ -s requirements.txt ] && grep -vE '^\s*(#|$)' requirements.txt >/dev/null; then
-  echo "[remote] installing extras from requirements.txt"
-  conda run -n "$CONDA_ENV" --no-capture-output pip install --quiet -r requirements.txt
+if [ "$CLONE_ENV" = "1" ]; then
+  if ! conda env list | awk '{print \$1}' | grep -qx "$CONDA_ENV"; then
+    echo "[remote] cloning $BASE_CONDA_ENV -> $CONDA_ENV"
+    conda create --yes --name "$CONDA_ENV" --clone "$BASE_CONDA_ENV" >/dev/null
+  fi
+  # Optional extras on top of the clone.
+  if [ -s requirements.txt ] && grep -vE '^\s*(#|$)' requirements.txt >/dev/null; then
+    echo "[remote] installing extras from requirements.txt"
+    conda run -n "$CONDA_ENV" --no-capture-output pip install --quiet -r requirements.txt
+  fi
+else
+  # Shared mode: reuse BASE_CONDA_ENV directly. Refuse to auto-install extras
+  # here because that would pollute the shared env and affect future runs.
+  if [ -s requirements.txt ] && grep -vE '^\s*(#|$)' requirements.txt >/dev/null; then
+    echo "[remote] NOTE: requirements.txt has extras but shared env is in use (no --clone)."
+    echo "[remote]       Install manually into $BASE_CONDA_ENV first, or re-submit with --clone."
+  fi
+  echo "[remote] using shared env: $BASE_CONDA_ENV (no clone)"
 fi
 
 # Write a small wrapper that tmux executes. Keeps the tmux invocation single-

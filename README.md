@@ -137,7 +137,15 @@ Every script that targets a specific run accepts `[exp-id]` as an argument; if o
 ./scripts/submit.sh --gpu 0 <experiment-dir>    # pin to GPU 0 (CUDA_VISIBLE_DEVICES)
 ./scripts/submit.sh --gpu 0,1 <experiment-dir>  # multi-GPU
 ./scripts/submit.sh --queue <experiment-dir>    # wait behind any running job on the same GPU
+./scripts/submit.sh --clone <experiment-dir>    # isolate in a per-experiment conda env
 ```
+
+**Shared vs. cloned conda env** (disk vs. isolation trade-off):
+
+- **Default** — the run uses `$BASE_CONDA_ENV` directly, no cloning. Fast (no 30s clone), uses ~no extra disk. Best when all experiments share the same deps. If `requirements.txt` has uncommented entries, the script warns and skips pip install (would pollute the shared env).
+- **With `--clone`** — clones `$BASE_CONDA_ENV → <exp-id>` for this run. Full isolation: extras from `requirements.txt` install cleanly into the clone without touching other experiments. Each clone normally uses hard links and adds little real disk, but metadata accumulates, so pair with `./scripts/gc.sh` on old runs.
+
+Recommended pattern: create a pristine master env once (`conda create --name my_base_shared --clone qrimtatar_tts`), point `BASE_CONDA_ENV=my_base_shared` in `.env`, and run everything in shared mode. Use `--clone` only when an experiment needs a conflicting package version.
 
 **Resume** reuses the same remote dir and conda env. Your `train.py` should check `<output-dir>/checkpoints/` on startup and pick up the latest — all 3 example scripts implement this pattern. After a crash, OOM, or forced cancel, running `--resume <exp-id>` continues from the last saved epoch.
 

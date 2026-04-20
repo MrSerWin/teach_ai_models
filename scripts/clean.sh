@@ -33,11 +33,14 @@ set -u
 CONDA_BASE="\$(conda info --base 2>/dev/null || echo \$HOME/miniconda3)"
 source "\$CONDA_BASE/etc/profile.d/conda.sh"
 
-if conda env list | awk '{print \$1}' | grep -qx "$EXP_ID"; then
+# Guard: never remove the shared base env (would break every future run).
+if [ "$EXP_ID" = "$BASE_CONDA_ENV" ]; then
+  echo "[remote] refusing to remove base env: $BASE_CONDA_ENV"
+elif conda env list | awk '{print \$1}' | grep -qx "$EXP_ID"; then
   echo "[remote] removing conda env: $EXP_ID"
   conda env remove --yes --name "$EXP_ID" >/dev/null
 else
-  echo "[remote] conda env '$EXP_ID' not found (already gone)"
+  echo "[remote] conda env '$EXP_ID' not found (shared-env run, nothing to remove)"
 fi
 
 if [ -d "$REMOTE_DIR" ]; then
