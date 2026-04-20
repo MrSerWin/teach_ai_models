@@ -4,14 +4,20 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [ ! -f "$ROOT_DIR/.env" ]; then
-  echo "error: $ROOT_DIR/.env not found. Copy .env.example and fill it in." >&2
-  exit 1
+# Default config is .env. Override with HOST=<name> to load .env.hosts/<name>.env
+# (e.g. HOST=laptop ./scripts/submit.sh ...). This lets one checkout drive
+# multiple training boxes without editing config files.
+if [ -n "${HOST:-}" ]; then
+  ENV_FILE="$ROOT_DIR/.env.hosts/$HOST.env"
+  [ -f "$ENV_FILE" ] || { echo "error: $ENV_FILE not found (HOST='$HOST')" >&2; exit 1; }
+else
+  ENV_FILE="$ROOT_DIR/.env"
+  [ -f "$ENV_FILE" ] || { echo "error: $ENV_FILE not found. Copy .env.example and fill it in." >&2; exit 1; }
 fi
 
 set -a
 # shellcheck disable=SC1091
-source "$ROOT_DIR/.env"
+source "$ENV_FILE"
 set +a
 
 : "${WIN_HOST:?WIN_HOST not set in .env}"

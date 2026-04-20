@@ -1,4 +1,6 @@
 .env
+.env.hosts/*.env
+!.env.hosts/.gitkeep
 .runs/
 models/*/
 !models/.gitkeep
