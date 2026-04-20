@@ -1,0 +1,15 @@
+experiment_name: example
+seed: 42
+
+data:
+  dataset_path: /mnt/d/datasets/mnist   # lives on Windows; Mac never touches it
+  batch_size: 128
+  num_workers: 4
+
+model:
+  hidden_size: 256
+
+train:
+  epochs: 3
+  lr: 0.001
+  device: cuda           # set to 'cpu' to smoke-test without a GPU

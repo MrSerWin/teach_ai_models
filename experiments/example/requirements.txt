@@ -1,0 +1,6 @@
+# Optional extras installed on top of the cloned conda env (BASE_CONDA_ENV).
+# Leave empty if the base env already has everything you need.
+# Uncomment below only if missing from the base env:
+# torch>=2.2
+# torchvision>=0.17
+# pyyaml>=6.0
