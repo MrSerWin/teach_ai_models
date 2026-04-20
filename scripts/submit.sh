@@ -59,6 +59,18 @@ if rsh "tmux has-session -t '$SESSION' 2>/dev/null"; then
   exit 1
 fi
 
+# Warn if the remote disk is getting full (default threshold: 5 GiB).
+MIN_FREE_GIB="${MIN_FREE_GIB:-5}"
+FREE_KB=$(rsh "df -Pk '$REMOTE_RUNS_DIR' 2>/dev/null | awk 'NR==2 {print \$4}'" || echo 0)
+FREE_GIB=$(( ${FREE_KB:-0} / 1024 / 1024 ))
+if [ "$FREE_GIB" -lt "$MIN_FREE_GIB" ]; then
+  echo "[submit] WARNING: only ${FREE_GIB} GiB free on $REMOTE_RUNS_DIR (threshold: ${MIN_FREE_GIB} GiB)"
+  echo "[submit]          consider running ./scripts/gc.sh or ./scripts/clean.sh on stale runs"
+  printf '[submit] continue anyway? [y/N] '
+  read -r ans
+  [ "$ans" = "y" ] || [ "$ans" = "Y" ] || { echo "[submit] aborted"; exit 1; }
+fi
+
 rsh "mkdir -p '$REMOTE_DIR'"
 
 # Record git provenance so months later you know WHICH code trained a model.
