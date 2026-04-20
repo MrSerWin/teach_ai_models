@@ -5,8 +5,6 @@
 set -euo pipefail
 source "$(cd "$(dirname "$0")/.." && pwd)/config.sh"
 
-: "${BASE_CONDA_ENV:=ml_base}"
-
 EXP_DIR="${1:?usage: submit.sh <experiment-dir>}"
 EXP_DIR="$(cd "$EXP_DIR" && pwd)"
 EXP_NAME="$(basename "$EXP_DIR")"

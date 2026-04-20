@@ -18,6 +18,7 @@ set +a
 : "${WIN_USER:?WIN_USER not set in .env}"
 : "${WIN_SSH_PORT:=22}"
 : "${REMOTE_RUNS_DIR:?REMOTE_RUNS_DIR not set in .env}"
+: "${BASE_CONDA_ENV:?BASE_CONDA_ENV not set in .env}"
 : "${LOCAL_MODELS_DIR:=$ROOT_DIR/models}"
 
 SSH_TARGET="$WIN_USER@$WIN_HOST"
