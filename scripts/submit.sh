@@ -67,7 +67,8 @@ if [ "$FOLLOW" -eq 1 ]; then
   echo "[submit] following logs (Ctrl-C stops tailing; training keeps running)"
   echo "[submit] resume later: ./scripts/logs.sh $EXP_ID"
   # tail -F waits for the file to appear, so running it immediately is safe.
-  exec rsh "tail -n +1 -F '$REMOTE_DIR/train.log'"
+  # Call ssh directly here — `exec` can't invoke bash functions like rsh().
+  exec ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "tail -n +1 -F '$REMOTE_DIR/train.log'"
 else
   echo "[submit] logs   : ./scripts/logs.sh"
   echo "[submit] status : ./scripts/status.sh"
