@@ -1,0 +1,22 @@
+experiment_name: tabular_csv
+seed: 42
+
+data:
+  # Expected files on the REMOTE:
+  #   /mnt/d/datasets/<name>/train.csv
+  #   /mnt/d/datasets/<name>/val.csv
+  # Both must contain the same columns. One column is the target (see 'target_column'),
+  # all others are treated as numeric features.
+  dataset_path: /mnt/d/datasets/demo_tabular
+  target_column: y
+  batch_size: 256
+  num_workers: 2
+
+model:
+  hidden_sizes: [128, 64]
+
+train:
+  task: regression     # 'regression' or 'classification'
+  epochs: 20
+  lr: 0.001
+  device: cuda

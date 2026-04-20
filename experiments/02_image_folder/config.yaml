@@ -1,0 +1,24 @@
+experiment_name: image_folder
+seed: 42
+
+data:
+  # Expected layout on the REMOTE (Windows/WSL):
+  #   /mnt/d/datasets/my_images/
+  #     train/<class_a>/*.jpg
+  #     train/<class_b>/*.jpg
+  #     val/<class_a>/*.jpg
+  #     val/<class_b>/*.jpg
+  dataset_path: /mnt/d/datasets/my_images
+  image_size: 224
+  batch_size: 32
+  num_workers: 4
+
+model:
+  # torchvision.models name; anything compatible works (resnet50, efficientnet_b0, ...)
+  backbone: resnet18
+  pretrained: true
+
+train:
+  epochs: 5
+  lr: 0.001
+  device: cuda

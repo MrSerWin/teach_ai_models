@@ -1,0 +1,17 @@
+experiment_name: mnist_builtin
+seed: 42
+
+data:
+  # MNIST is downloaded automatically on first run. This path lives on the
+  # remote (WSL) filesystem — nothing is uploaded from Mac.
+  dataset_path: /mnt/d/datasets/mnist
+  batch_size: 128
+  num_workers: 4
+
+model:
+  hidden_size: 256
+
+train:
+  epochs: 3
+  lr: 0.001
+  device: cuda           # 'cpu' for smoke-testing without a GPU

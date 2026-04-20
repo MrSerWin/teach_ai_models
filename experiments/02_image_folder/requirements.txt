@@ -1,0 +1,3 @@
+# extras on top of the base conda env (if missing):
+# pillow
+# torchvision

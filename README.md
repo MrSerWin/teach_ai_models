@@ -211,30 +211,77 @@ cat models/<exp-id>/metrics.json
 ./scripts/clean.sh -y                     # free space on Windows (optional)
 ```
 
+## Examples
+
+Three runnable examples under [experiments/](experiments/), covering the most common data patterns. Each has its own README with the exact data layout it expects, a `make_sample_data.py` helper to generate a toy dataset, and a one-line run command.
+
+| # | Folder | Task | Dataset format | Sample-data helper |
+|---|--------|------|----------------|---------------------|
+| 1 | [`01_mnist_builtin/`](experiments/01_mnist_builtin/) | Image classification (10 digits) | **No upload** — `torchvision` downloads MNIST on first run | — |
+| 2 | [`02_image_folder/`](experiments/02_image_folder/) | Image classification (N classes) | `train/<class>/*.jpg` + `val/<class>/*.jpg` (ImageFolder layout) | ✓ (synthetic colour images) |
+| 3 | [`03_tabular_csv/`](experiments/03_tabular_csv/) | Regression **or** classification on CSV features | `train.csv` + `val.csv` (same columns, one is the target) | ✓ (regression or classification) |
+
+### Smoke-test the pipeline
+
+```bash
+./scripts/submit.sh experiments/01_mnist_builtin
+```
+
+That's the fastest way to verify Mac→Windows→GPU→fetch works end-to-end. No data upload needed.
+
+### End-to-end with your own image dataset
+
+```bash
+# 1. Prepare local folder  ~/my_images/{train,val}/<class>/*.jpg
+./scripts/push-data.sh ~/my_images my_images
+# 2. Edit experiments/02_image_folder/config.yaml → dataset_path: /mnt/d/datasets/my_images
+# 3. Submit
+./scripts/submit.sh experiments/02_image_folder
+```
+
+See [experiments/02_image_folder/README.md](experiments/02_image_folder/README.md) for full details.
+
+### End-to-end with CSV data
+
+```bash
+# 1. Prepare  ~/my_csv/{train.csv, val.csv}  (same columns, one is the target)
+./scripts/push-data.sh ~/my_csv my_data
+# 2. Edit experiments/03_tabular_csv/config.yaml:
+#      data.dataset_path: /mnt/d/datasets/my_data
+#      data.target_column: <your-target-col>
+#      train.task: regression     # or classification
+# 3. Submit
+./scripts/submit.sh experiments/03_tabular_csv
+```
+
+See [experiments/03_tabular_csv/README.md](experiments/03_tabular_csv/README.md) for full details.
+
 ## Adding your own experiment
 
 Two layouts work:
 
-**A. Self-contained under `experiments/`** (default, for quick one-offs):
+**A. Under `experiments/`** — copy one of the `01_*`/`02_*`/`03_*` folders and tweak. Submit via `./scripts/submit.sh experiments/<my-name>`.
 
-Copy `experiments/example/` to `experiments/<my-name>/` and edit `train.py`, `config.yaml`, `requirements.txt`. Submit:
-```bash
-./scripts/submit.sh experiments/<my-name>
-```
+**B. External project folder** — when training code lives in a separate project, `submit.sh` accepts any absolute path:
 
-**B. External project folder** (when training lives inside a larger codebase):
-
-`submit.sh` accepts any absolute path — point it at the folder that contains `train.py` + `config.yaml`:
 ```bash
 ./scripts/submit.sh /Volumes/T9/1_dev/my_proj/training
 ./scripts/submit.sh ~/projects/my_proj/pipelines/train
 ```
-The `exp-id` takes the basename of that folder. Everything in the folder gets rsynced except `__pycache__`, `*.pyc`, `.venv`, `data/`, `models/`, `runs/`.
 
-**Contract in both cases:**
-- `train.py` — honors `--config <path> --output-dir <path>`; writes to `<output-dir>/final_model/` and `<output-dir>/metrics.json`.
-- `config.yaml` — hyperparams. Dataset paths should point to locations on the Windows box (e.g. `/mnt/d/datasets/my_dataset`). Upload data once with [`push-data.sh`](scripts/push-data.sh).
-- `requirements.txt` — **optional** extras installed on top of the cloned `$BASE_CONDA_ENV`. Leave empty/commented if the base has everything.
+The `exp-id` takes the basename of that folder. Contents get rsynced except `__pycache__`, `*.pyc`, `.venv`, `data/`, `models/`, `runs/`.
+
+**Contract your `train.py` must honour** (in both layouts):
+
+1. Accept CLI args `--config <path>` and `--output-dir <path>`.
+2. Read hyperparams from `<config>`.
+3. Write the final model to `<output-dir>/final_model/` (any file(s) inside).
+4. Write a summary to `<output-dir>/metrics.json`.
+5. Anything else (checkpoints, tensorboard, logs) is free — it stays on Windows and never comes back to Mac.
+
+`config.yaml` is yours — put whatever hyperparams make sense. Reference datasets by their **remote path** (e.g. `/mnt/d/datasets/<name>`) since training runs on Windows.
+
+`requirements.txt` is **optional** — only used for extras on top of the cloned `$BASE_CONDA_ENV`. Leave empty/commented if the base env has everything.
 
 ## What gets synced, what doesn't
 
