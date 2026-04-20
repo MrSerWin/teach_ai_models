@@ -79,7 +79,7 @@ fi
 rsh "mkdir -p '$REMOTE_DIR'"
 
 # Record git provenance so months later you know WHICH code trained a model.
-GIT_INFO_FILE="$(mktemp -t git_info.XXXXXX.json)"
+GIT_INFO_FILE="$(mktemp)"
 trap 'rm -f "$GIT_INFO_FILE"' EXIT
 if (cd "$EXP_DIR" && git rev-parse --is-inside-work-tree >/dev/null 2>&1); then
   cd "$EXP_DIR"
@@ -141,7 +141,9 @@ fi
 
 # Write a small wrapper that tmux executes. Keeps the tmux invocation single-
 # quoted (no nested-quote hell) and lets queue mode cleanly prefix with flock.
-cat > _run.sh <<'WRAPPER'
+# Pipe through sed instead of 'sed -i' because /mnt/d is NTFS and rejects the
+# permission-preserving rename sed does in-place.
+cat <<'WRAPPER' | sed "s|__CONDA_ENV__|$CONDA_ENV|g; s|__GPU_IDS__|$GPU_IDS|g" > _run.sh
 #!/usr/bin/env bash
 set -u
 CONDA_BASE="\$(conda info --base 2>/dev/null || echo \$HOME/miniconda3)"
@@ -154,8 +156,6 @@ rc=\${PIPESTATUS[0]}
 echo \$rc > status.exit
 if [ \$rc -eq 0 ]; then echo done > status; else echo failed > status; fi
 WRAPPER
-sed -i "s|__CONDA_ENV__|$CONDA_ENV|g; s|__GPU_IDS__|$GPU_IDS|g" _run.sh
-chmod +x _run.sh 2>/dev/null || true
 
 if [ "$QUEUE" -eq 1 ]; then
   LOCK="$REMOTE_RUNS_DIR/.gpu-${GPU_IDS:-all}.lock"
