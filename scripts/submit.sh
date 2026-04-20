@@ -61,10 +61,39 @@ fi
 
 rsh "mkdir -p '$REMOTE_DIR'"
 
+# Record git provenance so months later you know WHICH code trained a model.
+GIT_INFO_FILE="$(mktemp -t git_info.XXXXXX.json)"
+trap 'rm -f "$GIT_INFO_FILE"' EXIT
+if (cd "$EXP_DIR" && git rev-parse --is-inside-work-tree >/dev/null 2>&1); then
+  cd "$EXP_DIR"
+  G_COMMIT=$(git rev-parse HEAD)
+  G_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+  G_REMOTE=$(git config --get remote.origin.url 2>/dev/null || echo "")
+  G_SUBJECT=$(git log -1 --format=%s | tr -d '"' | head -c 200)
+  G_DIRTY=$(git status --porcelain | head -c 1 | wc -c | tr -d ' ')
+  cd - >/dev/null
+  cat >"$GIT_INFO_FILE" <<JSON
+{
+  "commit": "$G_COMMIT",
+  "branch": "$G_BRANCH",
+  "remote": "$G_REMOTE",
+  "subject": "$G_SUBJECT",
+  "dirty": $([ "$G_DIRTY" = "1" ] && echo true || echo false),
+  "submitted_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+JSON
+else
+  cat >"$GIT_INFO_FILE" <<JSON
+{ "commit": null, "submitted_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)" }
+JSON
+fi
+
 rsync_push \
   --exclude '__pycache__' --exclude '*.pyc' --exclude '.venv' \
   --exclude 'data/' --exclude 'models/' --exclude 'runs/' \
   "$EXP_DIR/" "$SSH_TARGET:$REMOTE_DIR/"
+
+rsync_push "$GIT_INFO_FILE" "$SSH_TARGET:$REMOTE_DIR/git_info.json"
 
 # Remote bootstrap: clone the pre-configured BASE_CONDA_ENV into a fresh
 # per-experiment env (pristine base + isolated per run). conda envs live

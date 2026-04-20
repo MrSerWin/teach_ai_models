@@ -26,6 +26,7 @@ rsync_pull \
   --include 'config.yaml' \
   --include 'train.log' \
   --include 'status' \
+  --include 'git_info.json' \
   --exclude '*' \
   "$SSH_TARGET:$REMOTE_DIR/" "$LOCAL_DIR/"
 
