@@ -12,10 +12,12 @@ source "$(cd "$(dirname "$0")/.." && pwd)/config.sh"
 
 FOLLOW=1
 RESUME_ID=""
+GPU_IDS=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -d|--detach) FOLLOW=0; shift ;;
     --resume)    RESUME_ID="${2:?--resume needs an exp-id}"; shift 2 ;;
+    --gpu)       GPU_IDS="${2:?--gpu needs a device id or comma list}"; shift 2 ;;
     --)          shift; break ;;
     -*)          echo "unknown flag: $1" >&2; exit 2 ;;
     *)           break ;;
@@ -52,6 +54,7 @@ else
   echo "[submit] exp id : $EXP_ID"
 fi
 echo "[submit] remote : $SSH_TARGET:$REMOTE_DIR"
+[ -n "$GPU_IDS" ] && echo "[submit] gpu    : CUDA_VISIBLE_DEVICES=$GPU_IDS"
 
 # Refuse to overwrite a live run.
 if rsh "tmux has-session -t '$SESSION' 2>/dev/null"; then
@@ -135,7 +138,9 @@ if [ -s requirements.txt ] && grep -vE '^\s*(#|$)' requirements.txt >/dev/null; 
 fi
 
 echo running > status
-tmux new-session -d -s "$SESSION" "bash -lc 'source \"\$CONDA_BASE/etc/profile.d/conda.sh\" && conda activate $CONDA_ENV && python -u train.py --config config.yaml --output-dir . 2>&1 | tee train.log; rc=\\\${PIPESTATUS[0]}; echo \\\$rc > status.exit; if [ \\\$rc -eq 0 ]; then echo done > status; else echo failed > status; fi'"
+GPU_EXPORT=""
+[ -n "$GPU_IDS" ] && GPU_EXPORT="export CUDA_VISIBLE_DEVICES=$GPU_IDS && "
+tmux new-session -d -s "$SESSION" "bash -lc 'source \"\$CONDA_BASE/etc/profile.d/conda.sh\" && conda activate $CONDA_ENV && ${GPU_EXPORT}python -u train.py --config config.yaml --output-dir . 2>&1 | tee train.log; rc=\\\${PIPESTATUS[0]}; echo \\\$rc > status.exit; if [ \\\$rc -eq 0 ]; then echo done > status; else echo failed > status; fi'"
 REMOTE
 
 printf '%s\n' "$EXP_ID" > "$(runs_state_dir)/latest"
