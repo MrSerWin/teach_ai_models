@@ -146,7 +146,7 @@ if [ "$FOLLOW" -eq 1 ]; then
   echo "[submit] resume later: ./scripts/logs.sh $EXP_ID"
   # Remote watcher: tail the log AND poll status file — exit tail automatically
   # once the training process flips status to done/failed/cancelled.
-  exec ssh "${SSH_OPTS[@]}" "$SSH_TARGET" bash -s "$REMOTE_DIR" <<'REMOTE_TAIL'
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" bash -s "$REMOTE_DIR" <<'REMOTE_TAIL'
 set -u
 cd "$1"
 tail -n +1 -F train.log &
@@ -165,6 +165,15 @@ kill $TAIL_PID 2>/dev/null || true
 echo
 echo "[remote] training finished — state: $state"
 REMOTE_TAIL
+
+  FINAL_STATE=$(rsh "cat '$REMOTE_DIR/status' 2>/dev/null || echo unknown" | tr -d '\r\n')
+  case "$FINAL_STATE" in
+    done)      PRIO=default ;;
+    failed)    PRIO=high    ;;
+    cancelled) PRIO=low     ;;
+    *)         PRIO=default ;;
+  esac
+  "$(dirname "$0")/_notify.sh" "teach_ai_models: $FINAL_STATE" "$EXP_ID" "$PRIO"
 else
   echo "[submit] logs   : ./scripts/logs.sh"
   echo "[submit] status : ./scripts/status.sh"
