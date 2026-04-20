@@ -61,9 +61,13 @@ if [ -z "\$(docker images -q '$IMAGE')" ]; then
 fi
 
 echo running > status
+: > train.log
+# Mount datasets at the SAME path inside the container so config.yaml files
+# (which reference e.g. /mnt/d/datasets/mnist) work transparently under both
+# conda and docker flows.
 tmux new-session -d -s "$SESSION" "docker run --rm --gpus all --name '$SESSION' \
   -v '$REMOTE_DIR':/workspace \
-  -v '$REMOTE_DATASETS_DIR':/datasets:ro \
+  -v '$REMOTE_DATASETS_DIR':'$REMOTE_DATASETS_DIR' \
   -w /workspace \
   '$IMAGE' \
   bash -c 'python -u train.py --config config.yaml --output-dir . 2>&1 | tee train.log; rc=\\\${PIPESTATUS[0]}; echo \\\$rc > status.exit; if [ \\\$rc -eq 0 ]; then echo done > status; else echo failed > status; fi'"
