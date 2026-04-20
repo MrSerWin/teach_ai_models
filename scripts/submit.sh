@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# Usage: ./scripts/submit.sh <experiment-dir>
+# Usage: ./scripts/submit.sh [-d|--detach] <experiment-dir>
 # Rsyncs experiment (code + config, NOT data/models) to Windows WSL,
-# clones the BASE_CONDA_ENV into a per-experiment env, starts training in tmux.
+# clones the BASE_CONDA_ENV into a per-experiment env, starts training in tmux,
+# then follows the log live. Use -d/--detach to return immediately instead.
 set -euo pipefail
 source "$(cd "$(dirname "$0")/.." && pwd)/config.sh"
 
-EXP_DIR="${1:?usage: submit.sh <experiment-dir>}"
+FOLLOW=1
+if [ "${1:-}" = "-d" ] || [ "${1:-}" = "--detach" ]; then
+  FOLLOW=0; shift
+fi
+
+EXP_DIR="${1:?usage: submit.sh [-d|--detach] <experiment-dir>}"
 EXP_DIR="$(cd "$EXP_DIR" && pwd)"
 EXP_NAME="$(basename "$EXP_DIR")"
 EXP_ID="$(date +%Y%m%d-%H%M%S)-${EXP_NAME}"
@@ -56,6 +62,14 @@ REMOTE
 
 printf '%s\n' "$EXP_ID" > "$(runs_state_dir)/latest"
 echo "[submit] tmux session: $SESSION"
-echo "[submit] logs   : ./scripts/logs.sh"
-echo "[submit] status : ./scripts/status.sh"
-echo "[submit] fetch  : ./scripts/fetch.sh   (when status=done)"
+
+if [ "$FOLLOW" -eq 1 ]; then
+  echo "[submit] following logs (Ctrl-C stops tailing; training keeps running)"
+  echo "[submit] resume later: ./scripts/logs.sh $EXP_ID"
+  # tail -F waits for the file to appear, so running it immediately is safe.
+  exec rsh "tail -n +1 -F '$REMOTE_DIR/train.log'"
+else
+  echo "[submit] logs   : ./scripts/logs.sh"
+  echo "[submit] status : ./scripts/status.sh"
+  echo "[submit] fetch  : ./scripts/fetch.sh   (when status=done)"
+fi

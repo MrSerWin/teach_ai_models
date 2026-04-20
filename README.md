@@ -110,14 +110,16 @@ Every script that targets a specific run accepts `[exp-id]` as an argument; if o
 ### [`submit.sh`](scripts/submit.sh) — start a training run
 
 ```bash
-./scripts/submit.sh <experiment-dir>
+./scripts/submit.sh <experiment-dir>            # submit and follow logs live
+./scripts/submit.sh -d <experiment-dir>         # submit and return immediately
+./scripts/submit.sh --detach <experiment-dir>   # same
 ```
 
 1. Generates `exp-id = <timestamp>-<experiment-dir-name>`.
 2. `rsync` pushes the experiment folder to `$REMOTE_RUNS_DIR/<exp-id>/`. Excludes `__pycache__`, `*.pyc`, `.venv`, `data/`, `models/`, `runs/`. Uses `--no-perms --no-owner --no-group --omit-dir-times` because `/mnt/d` is Windows NTFS and rejects Unix metadata.
 3. Remote bootstrap (over SSH): sources conda, verifies `$BASE_CONDA_ENV` exists, clones it into `<exp-id>` (≈30–60s vs. 5–10min for a fresh venv). If `requirements.txt` has uncommented entries, installs them on top via pip.
 4. Starts `python -u train.py --config config.yaml --output-dir .` inside a detached `tmux` session named `train-<exp-id>`. Writes `status` file: `running`, then `done`/`failed`/`cancelled`.
-5. Returns immediately. Writes `.runs/latest = <exp-id>` on Mac.
+5. Writes `.runs/latest = <exp-id>` on Mac, then by default attaches `tail -F` to the remote log. `Ctrl-C` detaches — training keeps running in tmux. Pass `-d`/`--detach` to skip the tail and return right away (useful for scripting).
 
 **Training-script contract:** `train.py` must accept `--config <path> --output-dir <path>`. Write the final model to `<output-dir>/final_model/` and summary to `<output-dir>/metrics.json` (other names won't be fetched back).
 
