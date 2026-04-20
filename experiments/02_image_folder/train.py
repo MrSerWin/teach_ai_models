@@ -1,4 +1,9 @@
-"""ImageFolder classification — finetune a torchvision backbone."""
+"""ImageFolder classification — finetune a torchvision backbone.
+
+Auto-resumes from checkpoints/epoch-*.pt if present (see submit.sh --resume).
+"""
+from __future__ import annotations
+
 import argparse, json
 from pathlib import Path
 
@@ -8,6 +13,11 @@ import torch.nn.functional as F
 import yaml
 from torch.utils.data import DataLoader
 from torchvision import datasets, models, transforms
+
+
+def latest_ckpt(ckpt_dir: Path) -> Path | None:
+    ckpts = sorted(ckpt_dir.glob("epoch-*.pt"), key=lambda p: int(p.stem.split("-")[1]))
+    return ckpts[-1] if ckpts else None
 
 
 def build_model(backbone: str, num_classes: int, pretrained: bool) -> nn.Module:
@@ -64,8 +74,20 @@ def main():
     model = build_model(cfg["model"]["backbone"], num_classes=len(classes), pretrained=cfg["model"]["pretrained"]).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=cfg["train"]["lr"])
 
-    history = []
-    for epoch in range(1, cfg["train"]["epochs"] + 1):
+    ckpt_dir = out / "checkpoints"
+    start_epoch = 1
+    history: list[dict] = []
+    last = latest_ckpt(ckpt_dir)
+    if last is not None:
+        print(f"[train] resuming from {last.name}")
+        ck = torch.load(last, map_location=device)
+        model.load_state_dict(ck["state_dict"])
+        opt.load_state_dict(ck["optimizer"])
+        start_epoch = ck["epoch"] + 1
+        history = ck.get("history", [])
+
+    total_epochs = cfg["train"]["epochs"]
+    for epoch in range(start_epoch, total_epochs + 1):
         model.train()
         for i, (x, y) in enumerate(dl_train):
             x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
@@ -86,7 +108,12 @@ def main():
         acc = correct / total
         print(f"[train] epoch={epoch} val_acc={acc:.4f}", flush=True)
         history.append({"epoch": epoch, "val_acc": acc})
-        torch.save(model.state_dict(), out / "checkpoints" / f"epoch-{epoch}.pt")
+        torch.save({
+            "state_dict": model.state_dict(),
+            "optimizer": opt.state_dict(),
+            "epoch": epoch,
+            "history": history,
+        }, ckpt_dir / f"epoch-{epoch}.pt")
 
     final_path = out / "final_model" / "model.pt"
     torch.save({"state_dict": model.state_dict(), "classes": classes, "backbone": cfg["model"]["backbone"]}, final_path)

@@ -115,13 +115,16 @@ All scripts live in [scripts/](scripts/) and source [config.sh](config.sh) which
 
 Every script that targets a specific run accepts `[exp-id]` as an argument; if omitted, it uses `.runs/latest` (written by `submit.sh`). Pass `<exp-id>` explicitly to act on older runs.
 
-### [`submit.sh`](scripts/submit.sh) — start a training run
+### [`submit.sh`](scripts/submit.sh) — start (or resume) a training run
 
 ```bash
 ./scripts/submit.sh <experiment-dir>            # submit and follow logs live
 ./scripts/submit.sh -d <experiment-dir>         # submit and return immediately
-./scripts/submit.sh --detach <experiment-dir>   # same
+./scripts/submit.sh --resume <exp-id>           # reuse an existing exp-id + conda env + checkpoints
+./scripts/submit.sh --resume <exp-id> <src-dir> # explicit source dir if auto-infer fails
 ```
+
+**Resume** reuses the same remote dir and conda env. Your `train.py` should check `<output-dir>/checkpoints/` on startup and pick up the latest — all 3 example scripts implement this pattern. After a crash, OOM, or forced cancel, running `--resume <exp-id>` continues from the last saved epoch.
 
 1. Generates `exp-id = <timestamp>-<experiment-dir-name>`.
 2. `rsync` pushes the experiment folder to `$REMOTE_RUNS_DIR/<exp-id>/`. Excludes `__pycache__`, `*.pyc`, `.venv`, `data/`, `models/`, `runs/`. Uses `--no-perms --no-owner --no-group --omit-dir-times` because `/mnt/d` is Windows NTFS and rejects Unix metadata.

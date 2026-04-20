@@ -1,26 +1,63 @@
 #!/usr/bin/env bash
-# Usage: ./scripts/submit.sh [-d|--detach] <experiment-dir>
-# Rsyncs experiment (code + config, NOT data/models) to Windows WSL,
-# clones the BASE_CONDA_ENV into a per-experiment env, starts training in tmux,
-# then follows the log live. Use -d/--detach to return immediately instead.
+# Usage:
+#   ./scripts/submit.sh [-d|--detach] <experiment-dir>
+#   ./scripts/submit.sh [-d|--detach] --resume <exp-id>      # pick up where it left off
+#
+# Rsyncs experiment (code + config, NOT data/models) to Windows WSL, clones the
+# BASE_CONDA_ENV into a per-experiment env, starts training in tmux, follows the
+# log live. Use -d/--detach to return immediately. Use --resume to reuse an
+# existing exp-id (and its conda env + checkpoints) instead of starting fresh.
 set -euo pipefail
 source "$(cd "$(dirname "$0")/.." && pwd)/config.sh"
 
 FOLLOW=1
-if [ "${1:-}" = "-d" ] || [ "${1:-}" = "--detach" ]; then
-  FOLLOW=0; shift
+RESUME_ID=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -d|--detach) FOLLOW=0; shift ;;
+    --resume)    RESUME_ID="${2:?--resume needs an exp-id}"; shift 2 ;;
+    --)          shift; break ;;
+    -*)          echo "unknown flag: $1" >&2; exit 2 ;;
+    *)           break ;;
+  esac
+done
+
+if [ -n "$RESUME_ID" ]; then
+  EXP_ID="$RESUME_ID"
+  # Infer source dir from local state if possible; otherwise require explicit path.
+  EXP_DIR="${1:-}"
+  if [ -z "$EXP_DIR" ]; then
+    EXP_NAME="${EXP_ID#*-*-}"          # strip leading YYYYMMDD-HHMMSS-
+    for guess in "experiments/$EXP_NAME" "./$EXP_NAME"; do
+      [ -d "$guess" ] && EXP_DIR="$guess" && break
+    done
+    [ -z "$EXP_DIR" ] && { echo "error: can't infer source dir for '$EXP_ID'; pass it explicitly" >&2; exit 2; }
+  fi
+else
+  EXP_DIR="${1:?usage: submit.sh [-d|--detach] <experiment-dir>  OR  submit.sh --resume <exp-id> [source-dir]}"
 fi
 
-EXP_DIR="${1:?usage: submit.sh [-d|--detach] <experiment-dir>}"
 EXP_DIR="$(cd "$EXP_DIR" && pwd)"
 EXP_NAME="$(basename "$EXP_DIR")"
-EXP_ID="$(date +%Y%m%d-%H%M%S)-${EXP_NAME}"
+if [ -z "$RESUME_ID" ]; then
+  EXP_ID="$(date +%Y%m%d-%H%M%S)-${EXP_NAME}"
+fi
 REMOTE_DIR="$REMOTE_RUNS_DIR/$EXP_ID"
 SESSION="train-$EXP_ID"
 CONDA_ENV="$EXP_ID"
 
-echo "[submit] exp id : $EXP_ID"
+if [ -n "$RESUME_ID" ]; then
+  echo "[submit] resuming exp: $EXP_ID"
+else
+  echo "[submit] exp id : $EXP_ID"
+fi
 echo "[submit] remote : $SSH_TARGET:$REMOTE_DIR"
+
+# Refuse to overwrite a live run.
+if rsh "tmux has-session -t '$SESSION' 2>/dev/null"; then
+  echo "[submit] error: tmux session '$SESSION' is already running. Use ./scripts/cancel.sh first." >&2
+  exit 1
+fi
 
 rsh "mkdir -p '$REMOTE_DIR'"
 

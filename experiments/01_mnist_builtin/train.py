@@ -6,8 +6,14 @@ Contract with submit.sh:
 Writes to <output-dir>:
   final_model/model.pt   final artifact (fetched back to Mac)
   metrics.json           summary metrics (fetched back)
-  checkpoints/*.pt       intermediate checkpoints (stay on Windows)
+  checkpoints/*.pt       per-epoch state (stays on Windows; used for resume)
+
+Auto-resume: on startup, the script looks in <output-dir>/checkpoints/ for the
+highest-numbered epoch-N.pt and picks up where it left off. Triggered by
+`./scripts/submit.sh --resume <exp-id>` which reuses the same output dir.
 """
+from __future__ import annotations
+
 import argparse, json, random
 from pathlib import Path
 
@@ -30,6 +36,11 @@ class MLP(nn.Module):
         return self.fc2(F.relu(self.fc1(x)))
 
 
+def latest_ckpt(ckpt_dir: Path) -> Path | None:
+    ckpts = sorted(ckpt_dir.glob("epoch-*.pt"), key=lambda p: int(p.stem.split("-")[1]))
+    return ckpts[-1] if ckpts else None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
@@ -39,7 +50,8 @@ def main():
     cfg = yaml.safe_load(Path(args.config).read_text())
     out = Path(args.output_dir)
     (out / "final_model").mkdir(parents=True, exist_ok=True)
-    (out / "checkpoints").mkdir(parents=True, exist_ok=True)
+    ckpt_dir = out / "checkpoints"
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     random.seed(cfg["seed"])
     torch.manual_seed(cfg["seed"])
@@ -56,8 +68,23 @@ def main():
     model = MLP(cfg["model"]["hidden_size"]).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=cfg["train"]["lr"])
 
-    history = []
-    for epoch in range(1, cfg["train"]["epochs"] + 1):
+    # Resume if a prior run left checkpoints behind.
+    start_epoch = 1
+    history: list[dict] = []
+    last = latest_ckpt(ckpt_dir)
+    if last is not None:
+        print(f"[train] resuming from {last.name}")
+        ck = torch.load(last, map_location=device)
+        model.load_state_dict(ck["state_dict"])
+        opt.load_state_dict(ck["optimizer"])
+        start_epoch = ck["epoch"] + 1
+        history = ck.get("history", [])
+
+    total_epochs = cfg["train"]["epochs"]
+    if start_epoch > total_epochs:
+        print(f"[train] already completed ({start_epoch - 1}/{total_epochs} epochs) — writing final artifacts")
+
+    for epoch in range(start_epoch, total_epochs + 1):
         model.train()
         for i, (x, y) in enumerate(dl_train):
             x, y = x.to(device), y.to(device)
@@ -79,7 +106,12 @@ def main():
         print(f"[train] epoch={epoch} val_acc={acc:.4f}", flush=True)
         history.append({"epoch": epoch, "val_acc": acc})
 
-        torch.save(model.state_dict(), out / "checkpoints" / f"epoch-{epoch}.pt")
+        torch.save({
+            "state_dict": model.state_dict(),
+            "optimizer": opt.state_dict(),
+            "epoch": epoch,
+            "history": history,
+        }, ckpt_dir / f"epoch-{epoch}.pt")
 
     final_path = out / "final_model" / "model.pt"
     torch.save(model.state_dict(), final_path)
