@@ -30,4 +30,9 @@ rsync_pull \
   --exclude '*' \
   "$SSH_TARGET:$REMOTE_DIR/" "$LOCAL_DIR/"
 
+# Render a human-readable summary so older runs are self-describing.
+if command -v python3 >/dev/null 2>&1; then
+  python3 "$(dirname "$0")/_model_card.py" "$LOCAL_DIR" || true
+fi
+
 echo "[fetch] done -> $LOCAL_DIR"
