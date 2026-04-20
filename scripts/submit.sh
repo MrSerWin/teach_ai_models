@@ -13,11 +13,13 @@ source "$(cd "$(dirname "$0")/.." && pwd)/config.sh"
 FOLLOW=1
 RESUME_ID=""
 GPU_IDS=""
+QUEUE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -d|--detach) FOLLOW=0; shift ;;
     --resume)    RESUME_ID="${2:?--resume needs an exp-id}"; shift 2 ;;
     --gpu)       GPU_IDS="${2:?--gpu needs a device id or comma list}"; shift 2 ;;
+    --queue)     QUEUE=1; shift ;;
     --)          shift; break ;;
     -*)          echo "unknown flag: $1" >&2; exit 2 ;;
     *)           break ;;
@@ -137,10 +139,32 @@ if [ -s requirements.txt ] && grep -vE '^\s*(#|$)' requirements.txt >/dev/null; 
   conda run -n "$CONDA_ENV" --no-capture-output pip install --quiet -r requirements.txt
 fi
 
+# Write a small wrapper that tmux executes. Keeps the tmux invocation single-
+# quoted (no nested-quote hell) and lets queue mode cleanly prefix with flock.
+cat > _run.sh <<'WRAPPER'
+#!/usr/bin/env bash
+set -u
+CONDA_BASE="\$(conda info --base 2>/dev/null || echo \$HOME/miniconda3)"
+source "\$CONDA_BASE/etc/profile.d/conda.sh"
+conda activate "__CONDA_ENV__"
+[ -n "__GPU_IDS__" ] && export CUDA_VISIBLE_DEVICES="__GPU_IDS__"
 echo running > status
-GPU_EXPORT=""
-[ -n "$GPU_IDS" ] && GPU_EXPORT="export CUDA_VISIBLE_DEVICES=$GPU_IDS && "
-tmux new-session -d -s "$SESSION" "bash -lc 'source \"\$CONDA_BASE/etc/profile.d/conda.sh\" && conda activate $CONDA_ENV && ${GPU_EXPORT}python -u train.py --config config.yaml --output-dir . 2>&1 | tee train.log; rc=\\\${PIPESTATUS[0]}; echo \\\$rc > status.exit; if [ \\\$rc -eq 0 ]; then echo done > status; else echo failed > status; fi'"
+python -u train.py --config config.yaml --output-dir . 2>&1 | tee train.log
+rc=\${PIPESTATUS[0]}
+echo \$rc > status.exit
+if [ \$rc -eq 0 ]; then echo done > status; else echo failed > status; fi
+WRAPPER
+sed -i "s|__CONDA_ENV__|$CONDA_ENV|g; s|__GPU_IDS__|$GPU_IDS|g" _run.sh
+chmod +x _run.sh 2>/dev/null || true
+
+if [ "$QUEUE" -eq 1 ]; then
+  LOCK="$REMOTE_RUNS_DIR/.gpu-${GPU_IDS:-all}.lock"
+  LOCK=\${LOCK//,/_}                  # commas are illegal in some fs
+  echo queued > status
+  tmux new-session -d -s "$SESSION" "cd $REMOTE_DIR && flock -x \$LOCK bash _run.sh"
+else
+  tmux new-session -d -s "$SESSION" "cd $REMOTE_DIR && bash _run.sh"
+fi
 REMOTE
 
 printf '%s\n' "$EXP_ID" > "$(runs_state_dir)/latest"
