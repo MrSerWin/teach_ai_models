@@ -143,6 +143,10 @@ fi
 # quoted (no nested-quote hell) and lets queue mode cleanly prefix with flock.
 # Pipe through sed instead of 'sed -i' because /mnt/d is NTFS and rejects the
 # permission-preserving rename sed does in-place.
+# Pre-create train.log so the Mac-side 'tail -F' finds it immediately instead
+# of racing the tmux bootstrap.
+: > train.log
+
 cat <<'WRAPPER' | sed "s|__CONDA_ENV__|$CONDA_ENV|g; s|__GPU_IDS__|$GPU_IDS|g" > _run.sh
 #!/usr/bin/env bash
 set -u
