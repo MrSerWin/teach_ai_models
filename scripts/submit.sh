@@ -64,11 +64,29 @@ printf '%s\n' "$EXP_ID" > "$(runs_state_dir)/latest"
 echo "[submit] tmux session: $SESSION"
 
 if [ "$FOLLOW" -eq 1 ]; then
-  echo "[submit] following logs (Ctrl-C stops tailing; training keeps running)"
+  echo "[submit] following logs (auto-exit when training finishes; Ctrl-C to detach early)"
   echo "[submit] resume later: ./scripts/logs.sh $EXP_ID"
-  # tail -F waits for the file to appear, so running it immediately is safe.
-  # Call ssh directly here — `exec` can't invoke bash functions like rsh().
-  exec ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "tail -n +1 -F '$REMOTE_DIR/train.log'"
+  # Remote watcher: tail the log AND poll status file — exit tail automatically
+  # once the training process flips status to done/failed/cancelled.
+  exec ssh "${SSH_OPTS[@]}" "$SSH_TARGET" bash -s "$REMOTE_DIR" <<'REMOTE_TAIL'
+set -u
+cd "$1"
+tail -n +1 -F train.log &
+TAIL_PID=$!
+trap 'kill $TAIL_PID 2>/dev/null' EXIT INT TERM
+state=running
+while :; do
+  state=$(cat status 2>/dev/null || echo running)
+  case "$state" in
+    done|failed|cancelled) break ;;
+  esac
+  sleep 2
+done
+sleep 1                            # let tail flush the last lines
+kill $TAIL_PID 2>/dev/null || true
+echo
+echo "[remote] training finished — state: $state"
+REMOTE_TAIL
 else
   echo "[submit] logs   : ./scripts/logs.sh"
   echo "[submit] status : ./scripts/status.sh"
