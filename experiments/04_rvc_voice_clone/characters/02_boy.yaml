@@ -1,0 +1,27 @@
+experiment_name: rvc_voice_clone
+seed: 42
+model_name: boy
+dataset_path: /mnt/d/datasets/rvc/boy
+sample_rate: 40000
+pretrained: ov2super_40k
+gpu: 0
+cpu_cores: 4
+noise_reduction: false
+
+# Child voice: bright, high pitch — smaller hop helps capture fast pitch motion.
+# If rmvpe wobbles on the child range, try crepe.
+extract:
+  f0_method: rmvpe
+  hop_length: 64
+  embedder: contentvec
+
+train:
+  epochs: 350         # child voices often need a bit more to stabilize
+  batch_size: 8
+  save_every: 25
+  save_only_latest: false
+  cache_in_gpu: true
+  overtraining_detector: true
+  overtraining_threshold: 50
+
+# Inference hint: pitch_shift +5..+8, index_rate 0.5-0.75.

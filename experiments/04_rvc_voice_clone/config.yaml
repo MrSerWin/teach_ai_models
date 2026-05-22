@@ -1,0 +1,26 @@
+experiment_name: rvc_voice_clone
+seed: 42
+model_name: narrator
+dataset_path: /mnt/d/datasets/rvc/narrator
+sample_rate: 40000             # Ov2Super only ships 40k/32k; 48k loses the pretrain advantage
+pretrained: ov2super_40k
+gpu: 0
+cpu_cores: 4
+noise_reduction: false
+
+# Author / narrator: warm, low-mid male, calm. Adult timbre — standard hop.
+extract:
+  f0_method: rmvpe
+  hop_length: 128
+  embedder: contentvec
+
+train:
+  epochs: 300
+  batch_size: 20         # RTX 5090 Laptop has 24GB; ТЗ §5.2 → 20+ for 24GB
+  save_every: 25
+  save_only_latest: false
+  cache_in_gpu: true
+  overtraining_detector: true
+  overtraining_threshold: 50
+
+# Inference hint (ТЗ §2): pitch_shift 0..-2, index_rate 0.5-0.75.

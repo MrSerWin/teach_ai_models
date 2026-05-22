@@ -1,0 +1,27 @@
+experiment_name: rvc_voice_clone
+seed: 42
+model_name: grandpa
+dataset_path: /mnt/d/datasets/rvc/grandpa
+sample_rate: 40000
+pretrained: ov2super_40k
+gpu: 0
+cpu_cores: 4
+noise_reduction: false
+
+# Elderly male: low, raspy, slow. Larger hop is fine — F0 motion is slower.
+# If raspy/breathy artifacts dominate, try crepe instead of rmvpe.
+extract:
+  f0_method: rmvpe
+  hop_length: 160
+  embedder: contentvec
+
+train:
+  epochs: 300
+  batch_size: 8
+  save_every: 25
+  save_only_latest: false
+  cache_in_gpu: true
+  overtraining_detector: true
+  overtraining_threshold: 50
+
+# Inference hint: pitch_shift -3..-5, index_rate 0.5-0.75.

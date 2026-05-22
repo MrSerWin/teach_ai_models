@@ -1,0 +1,6 @@
+# Applio brings its own (heavy) dependency tree — installed once into the
+# ml_base conda env on the Windows box, not per experiment. Submit with
+# `--clone` only if you need to pin a different Applio version per run.
+#
+# These two are the only things train.py itself imports directly.
+pyyaml

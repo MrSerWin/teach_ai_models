@@ -14,7 +14,10 @@ REMOTE_DIR="$REMOTE_DATASETS_DIR/$REMOTE_SUB"
 echo "[push-data] $LOCAL_DIR  ->  $SSH_TARGET:$REMOTE_DIR"
 rsh "mkdir -p '$REMOTE_DIR'"
 
-rsync_push --progress --human-readable "$LOCAL_DIR/" "$SSH_TARGET:$REMOTE_DIR/"
+rsync_push --progress --human-readable \
+  --exclude '_raw/' --exclude '_sliced/' --exclude 'downloads/' \
+  --exclude '.DS_Store' --exclude '__pycache__/' \
+  "$LOCAL_DIR/" "$SSH_TARGET:$REMOTE_DIR/"
 
 echo "[push-data] done. In your config.yaml point to:"
 echo "  $REMOTE_DIR"
