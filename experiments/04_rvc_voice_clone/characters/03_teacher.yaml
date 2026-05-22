@@ -16,11 +16,15 @@ extract:
 
 train:
   epochs: 300
-  batch_size: 8
+  batch_size: 20         # RTX 5090, 24GB
   save_every: 25
   save_only_latest: false
   cache_in_gpu: true
   overtraining_detector: true
   overtraining_threshold: 50
 
-# Inference hint: pitch_shift +4..+6, index_rate 0.5-0.75.
+# Source: Urie Yedemova crh audiobook (trkmillet.ru), ~30 min, female native crh.
+# ACCEPTED inference (male narration -> female teacher):
+#   checkpoint epoch 100, --pitch 12 --index-rate 0.5 --protect 0.4 --formant 1.0
+# Note: ТЗ §2's +4..+6 assumed a female source; converting the author's MALE
+# narration needs ~+12 (octave). Slight residual robotic-ness accepted.

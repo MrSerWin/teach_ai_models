@@ -15,6 +15,10 @@
 #   --volume-envelope 0.25        RMS mix
 #   --f0 rmvpe                    rmvpe | crepe | crepe-tiny | fcpe
 #   --embedder contentvec        MUST match training
+#   --formant 0                   formant shift for cross-gender. 0 = off.
+#                                 >1.0 raises formants (male->female/child),
+#                                 e.g. 1.2-1.5. <1.0 lowers (female->male).
+#                                 Pair with a big --pitch (male->female ~ +12).
 #
 # Output: models/<model_name>_tests/<epoch>_ir<index_rate>_p<pitch>.wav  (on Mac)
 # Open them in Finder and compare by ear.
@@ -32,6 +36,7 @@ PROTECT=0.33
 VOL_ENV=0.25
 F0=rmvpe
 EMBEDDER=contentvec
+FORMANT=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --epochs)          EPOCHS="$2"; shift 2 ;;
@@ -41,9 +46,17 @@ while [ $# -gt 0 ]; do
     --volume-envelope) VOL_ENV="$2"; shift 2 ;;
     --f0)              F0="$2"; shift 2 ;;
     --embedder)        EMBEDDER="$2"; shift 2 ;;
+    --formant)         FORMANT="$2"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
+
+# Build formant args once. RVC: --formant_shifting True + qfrency/timbre > 1.0
+# raises formants (male->female). Off by default.
+FORMANT_ARGS="--formant_shifting False"
+if [ "$FORMANT" != "0" ]; then
+  FORMANT_ARGS="--formant_shifting True --formant_qfrency $FORMANT --formant_timbre $FORMANT"
+fi
 
 APPLIO_DIR="/home/$WIN_USER/applio"
 LOGS="$APPLIO_DIR/logs/$MODEL"
@@ -84,7 +97,7 @@ for pth in "${PTHS[@]}"; do
   tag=$(echo "$base" | sed -E "s/^${MODEL}_//; s/_[0-9]+s.*//")   # e.g. 280e
   echo "$base" | grep -q best_epoch && tag="${tag}_best"
   remote_out="/home/$WIN_USER/_abtest_${tag}.wav"
-  local_out="$OUT_DIR/${tag}_ir${INDEX_RATE}_p${PITCH}.wav"
+  local_out="$OUT_DIR/${tag}_ir${INDEX_RATE}_p${PITCH}_fmt${FORMANT}.wav"
   echo "[infer] === $tag ==="
   rsh bash -s <<REMOTE
 set -e
@@ -97,7 +110,8 @@ python core.py infer \
   --input_path "$REMOTE_SRC" \
   --output_path "$remote_out" \
   --pitch $PITCH --index_rate $INDEX_RATE --protect $PROTECT \
-  --f0_method $F0 --embedder_model $EMBEDDER --volume_envelope $VOL_ENV
+  --f0_method $F0 --embedder_model $EMBEDDER --volume_envelope $VOL_ENV \
+  $FORMANT_ARGS
 REMOTE
   rsync_pull "$SSH_TARGET:$remote_out" "$local_out"
   rsh "rm -f '$remote_out'" || true
