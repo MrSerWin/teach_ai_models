@@ -1,3 +1,13 @@
+# BOY — NO separate training. Reuses the trained `narrator_v2_oralhan` model
+# (adult male, Kazakh) pushed up into a child-male range via pitch + formant.
+# ACCEPTED recipe (from the author's MALE narration):
+#   model = narrator_v2_oralhan (best epoch)
+#   ./scripts/rvc/infer.sh narrator_v2_oralhan <src.wav> \
+#       --epochs best --pitch 10 --index-rate 0.5 --protect 0.4 --formant 1.2
+#
+# Rationale: no single-speaker child crh source exists (see DATASETS.md). The
+# adult-male narrator at +10 semitones + formant 1.2 lands in a credible 8-10yo
+# boy range. Training fields below kept only for a future real-child dataset.
 experiment_name: rvc_voice_clone
 seed: 42
 model_name: boy
@@ -8,20 +18,16 @@ gpu: 0
 cpu_cores: 4
 noise_reduction: false
 
-# Child voice: bright, high pitch — smaller hop helps capture fast pitch motion.
-# If rmvpe wobbles on the child range, try crepe.
 extract:
   f0_method: rmvpe
   hop_length: 64
   embedder: contentvec
 
 train:
-  epochs: 350         # child voices often need a bit more to stabilize
-  batch_size: 8
+  epochs: 350
+  batch_size: 20
   save_every: 25
   save_only_latest: false
   cache_in_gpu: true
   overtraining_detector: true
   overtraining_threshold: 50
-
-# Inference hint: pitch_shift +5..+8, index_rate 0.5-0.75.
