@@ -1,3 +1,14 @@
+# GIRL — NO separate training. Reuses the trained `teacher` model (female crh,
+# Urie Yedemova) pushed up into a child range via large pitch + formant shift.
+# ACCEPTED recipe (from the author's MALE narration):
+#   model = teacher (epoch 100)
+#   ./scripts/rvc/infer.sh teacher <src.wav> \
+#       --epochs 100 --pitch 17 --index-rate 0.5 --protect 0.4 --formant 1.4
+#
+# Rationale: no single-speaker child crh source exists (see DATASETS.md). The
+# adult-female teacher model at +17 semitones + formant 1.4 lands in a credible
+# 7-9yo girl range. The training fields below are kept only if you later get a
+# real child dataset and want to train a dedicated `girl` model.
 experiment_name: rvc_voice_clone
 seed: 42
 model_name: girl
@@ -8,7 +19,6 @@ gpu: 0
 cpu_cores: 4
 noise_reduction: false
 
-# Child female: high, playful — small hop for accurate F0 on fast pitch motion.
 extract:
   f0_method: rmvpe
   hop_length: 64
@@ -16,11 +26,9 @@ extract:
 
 train:
   epochs: 350
-  batch_size: 8
+  batch_size: 20
   save_every: 25
   save_only_latest: false
   cache_in_gpu: true
   overtraining_detector: true
   overtraining_threshold: 50
-
-# Inference hint: pitch_shift +6..+9, index_rate 0.5-0.75.
