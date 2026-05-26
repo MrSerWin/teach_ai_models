@@ -1,15 +1,14 @@
 experiment_name: rvc_voice_clone
 seed: 42
-model_name: narrator_v2_oralhan
-dataset_path: /mnt/d/datasets/rvc/narrator2
+model_name: teacher
+dataset_path: /mnt/d/datasets/rvc/teacher
 sample_rate: 40000
 pretrained: ov2super_40k
 gpu: 0
 cpu_cores: 4
 noise_reduction: false
 
-# Narrator take 2: Kazakh audiobook reader (Oralhan Bökey). Full crh phoneme
-# coverage (q/ğ/ñ). Adult male storyteller — standard hop.
+# Adult female: soft, friendly, slightly strict.
 extract:
   f0_method: rmvpe
   hop_length: 128
@@ -17,11 +16,11 @@ extract:
 
 train:
   epochs: 300
-  batch_size: 20         # RTX 5090 Laptop, 24GB
+  batch_size: 8
   save_every: 25
   save_only_latest: false
   cache_in_gpu: true
   overtraining_detector: true
   overtraining_threshold: 50
 
-# Inference hint (ТЗ §2): pitch_shift 0..-2, index_rate 0.5-0.75.
+# Inference hint: pitch_shift +4..+6, index_rate 0.5-0.75.

@@ -11,5 +11,7 @@ __pycache__/
 experiments/*/sample_data/
 # RVC datasets — large audio, regenerable via scripts/rvc/prep-rvc-dataset.sh
 data/
+# Source recordings to be dubbed (audio, not code)
+scripts/Mult/
 # macOS cruft
 .DS_Store
