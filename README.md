@@ -300,6 +300,9 @@ Three runnable examples under [experiments/](experiments/), covering the most co
 | 1 | [`01_mnist_builtin/`](experiments/01_mnist_builtin/) | Image classification (10 digits) | **No upload** — `torchvision` downloads MNIST on first run | — |
 | 2 | [`02_image_folder/`](experiments/02_image_folder/) | Image classification (N classes) | `train/<class>/*.jpg` + `val/<class>/*.jpg` (ImageFolder layout) | ✓ (synthetic colour images) |
 | 3 | [`03_tabular_csv/`](experiments/03_tabular_csv/) | Regression **or** classification on CSV features | `train.csv` + `val.csv` (same columns, one is the target) | ✓ (regression or classification) |
+| 4 | [`04_rvc_voice_clone/`](experiments/04_rvc_voice_clone/) | RVC voice cloning (audio) — real project: 5-voice cartoon dub | folder of clean single-speaker `*.wav` per character | — (sourced manually) |
+
+Example 4 is a full real-world pipeline (Applio/RVC + audio prep + batch dubbing), not a toy. Start with its [WORKFLOW.md](experiments/04_rvc_voice_clone/WORKFLOW.md) for the end-to-end process and [scripts/rvc/](scripts/rvc/) for the audio-specific tooling (`prep-rvc-dataset.sh`, `infer.sh`, `dub.sh`).
 
 ### Smoke-test the pipeline
 
