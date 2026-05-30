@@ -1,0 +1,12 @@
+# Installed by deploy.sh into the cloned `wan_video` conda env on the GPU box.
+# torch/CUDA are NOT here on purpose — they come from the cloned `applio` base
+# (torch 2.7.1+cu128, already working on the RTX 5090 / Blackwell sm_120).
+diffusers>=0.36.0
+transformers>=4.49.0
+accelerate
+ftfy
+imageio
+imageio-ffmpeg
+huggingface_hub
+sentencepiece   # T5 tokenizer for LTX-Video
+tiktoken        # T5 tokenizer fallback
