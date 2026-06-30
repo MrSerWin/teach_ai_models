@@ -41,12 +41,19 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$VIDEO" ] || { echo "error: --video <prompt> is required" >&2; exit 2; }
 
-DIST=""
+DIST=""; VID_ENV="$VIDEO_ENV"
 case "$BACKEND" in
-  wan)  SCRIPT="generate.py";     MODEL="/mnt/d/models/Wan2.2-TI2V-5B";             DEF_FRAMES=121 ;;
-  ltx)  SCRIPT="generate_ltx.py"; MODEL="/mnt/d/models/LTX-Video";                 DEF_FRAMES=161 ;;
-  ltxd) SCRIPT="generate_ltx.py"; MODEL="/mnt/d/models/LTX-Video-0.9.7-distilled"; DEF_FRAMES=161; DIST="--distilled" ;;
-  *)    echo "unknown backend: $BACKEND (wan|ltx|ltxd)" >&2; exit 2 ;;
+  wan)  SCRIPT="generate.py";        MODEL="/mnt/d/models/Wan2.2-TI2V-5B";            DEF_FRAMES=121 ;;
+  ltx)  SCRIPT="generate_ltx.py";    MODEL="/mnt/d/models/LTX-Video";                 DEF_FRAMES=161 ;;
+  ltxd) SCRIPT="generate_ltx.py";    MODEL="/mnt/d/models/ltxv-2b-0.9.6-distilled-04-25.safetensors"; DEF_FRAMES=161
+        DIST="--distilled --base-dir /mnt/d/models/LTX-Video" ;;
+  # native Lightricks/LTX-Video repo — own env, YAML config pins matching components.
+  ltxn) SCRIPT="generate_ltx_native.py"; MODEL="\$HOME/LTX-Video-native";             DEF_FRAMES=161
+        # 0.9.6-distilled (pipeline_type: base, single-pass, no upscaler) + lean YAML
+        # (no Llama-3.2 / Florence-2 enhancer). Fits 24 GB without offload — native
+        # repo's --offload_to_cpu doesn't migrate inputs cleanly, so we avoid it.
+        VID_ENV="ltx_native"; DIST="--config configs/ltxv-2b-0.9.6-distilled-lean.yaml" ;;
+  *)    echo "unknown backend: $BACKEND (wan|ltx|ltxd|ltxn)" >&2; exit 2 ;;
 esac
 EXTRA="$DIST"; [ -n "$FRAMES" ] && EXTRA="$EXTRA --frames $FRAMES"; [ -n "$STEPS" ] && EXTRA="$EXTRA --steps $STEPS"
 # Audio duration target = clip length, so tracks match the video.
@@ -73,7 +80,7 @@ DIR="$REMOTE_DIR"; mkdir -p "\$DIR"
 env_exists() { conda env list | awk '{print \$1}' | grep -qx "\$1"; }
 
 echo "--- video ---"
-conda activate "$VIDEO_ENV"
+conda activate "$VID_ENV"
 python "$REMOTE_APP_DIR/$SCRIPT" --prompt "$VIDEO" --model-dir "$MODEL" --out "\$DIR/video.mp4" $EXTRA
 
 if [ -n "$VOICE" ]; then
@@ -123,8 +130,7 @@ else
   ffmpeg "\${args[@]}"
   echo "mixed \${n} track(s) -> video_av.mp4"
 fi
-SIZE=\$(du -h "\$DIR/video_av.mp4" | cut -f1)
-echo "DONE: \$DIR/video_av.mp4 (\$SIZE)"
+printf 'DONE: %s\n' "\$DIR/video_av.mp4"
 REMOTE_SCRIPT
 
 LOCAL_OUT="$EXP_DIR/out/$NAME"

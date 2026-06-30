@@ -39,19 +39,27 @@ Overridable via env vars: `VIDEO_ENV`, `REMOTE_MODEL_DIR`, `REMOTE_APP_DIR`.
 Runs on the GPU box, pulls the clip to `out/<slug>_<ts>/video.mp4`.
 Defaults: 704×1280, 121 frames @24 fps (≈5 s), 50 steps. Tune in `generate.py`.
 
-## Longer clips (LTX-Video backend)
+## Longer clips (LTX-Video backends)
 
 Wan is capped at ~5s (trained for 121 frames; pushing `--frames` past ~181
-degrades). For longer, deploy the LTX backend — it reuses the same `wan_video`
-env (LTX ships in diffusers), only downloads weights:
+degrades). For longer, we have two LTX backends — only `ltxn` is recommended:
+
+| Backend | What | Status |
+|---|---|---|
+| `ltx` | LTX-Video 0.9.x base via diffusers | weak / often blank — kept for reference only |
+| `ltxn` | LTX-Video 0.9.6-distilled via the native repo (`inference.py`) | **works** — 6.7s coherent clips on 24 GB |
 
 ```bash
-./experiments/05_video_gen/deploy_ltx.sh
-./experiments/05_video_gen/generate.sh --backend ltx --frames 257 "<english prompt>"
+./experiments/05_video_gen/deploy_ltx_native.sh
+./experiments/05_video_gen/produce.sh --backend ltxn --frames 161 ...
 ```
 
-161 frames ≈ 6.7s, 257 ≈ 10.7s on 24 GB. For true 30–60s, the native
-Lightricks/LTX-Video repo is the next step; this diffusers path is the ~10s tier.
+Uses a lean copy of `configs/ltxv-2b-0.9.6-distilled.yaml` with the prompt
+enhancer (Llama-3.2-3B + Florence-2) blanked, which keeps it within 24 GB
+without `--offload_to_cpu` (the native repo's offload helper has device-mismatch
+bugs on this checkpoint). Quality is below Wan 2.2 but the picture is coherent
+and the clip is longer. For Wan-quality длинное you'd stitch Wan 5s clips
+(not yet built).
 
 ## One command: video + voice + SFX + music
 

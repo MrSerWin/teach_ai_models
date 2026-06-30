@@ -1,0 +1,7 @@
+# Generated dataset & intermediates — large audio, not source
+dataset/wavs/
+dataset/*.csv
+dataset/segments.jsonl
+work/
+*.wav
+*.mp3

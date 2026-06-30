@@ -52,7 +52,7 @@ else
   case "$BACKEND" in
     wan)  SCRIPT="generate.py";     DEF_MODEL="/mnt/d/models/Wan2.2-TI2V-5B" ;;
     ltx)  SCRIPT="generate_ltx.py"; DEF_MODEL="/mnt/d/models/LTX-Video" ;;
-    ltxd) SCRIPT="generate_ltx.py"; DEF_MODEL="/mnt/d/models/LTX-Video-0.9.7-distilled"; GEN_ARGS+=("--distilled") ;;
+    ltxd) SCRIPT="generate_ltx.py"; DEF_MODEL="/mnt/d/models/ltxv-2b-0.9.6-distilled-04-25.safetensors"; GEN_ARGS+=("--distilled" "--base-dir" "/mnt/d/models/LTX-Video") ;;
     *)    echo "unknown backend: $BACKEND (want wan|ltx|ltxd)" >&2; exit 2 ;;
   esac
 fi

@@ -40,6 +40,9 @@ def main() -> int:
     ap.add_argument("--guidance", type=float, default=-1.0)
     ap.add_argument("--distilled", action="store_true",
                     help="model is an LTX *-distilled checkpoint (few-step, guidance 1.0)")
+    ap.add_argument("--base-dir", default="",
+                    help="when --model-dir is a single .safetensors transformer, "
+                         "load text_encoder/tokenizer/vae/scheduler from this diffusers repo dir")
     ap.add_argument("--seed", type=int, default=-1)
     args = ap.parse_args()
 
@@ -47,7 +50,7 @@ def main() -> int:
     guidance = args.guidance if args.guidance >= 0 else (1.0 if args.distilled else 3.0)
 
     import torch
-    from diffusers import LTXPipeline
+    from diffusers import LTXPipeline, LTXVideoTransformer3DModel
     from diffusers.utils import export_to_video
 
     if not torch.cuda.is_available():
@@ -64,8 +67,23 @@ def main() -> int:
         print(f"[ltx] snapped to LTX grid: {w}x{h} frames={f}", flush=True)
 
     t0 = time.time()
-    print(f"[ltx] loading pipeline from {args.model_dir} ...", flush=True)
-    pipe = LTXPipeline.from_pretrained(args.model_dir, torch_dtype=torch.bfloat16)
+    if args.model_dir.endswith(".safetensors"):
+        # Single-file transformer (e.g. the 2B distilled): load it standalone, then
+        # build the rest of the pipeline from the base diffusers repo we already have.
+        if not args.base_dir:
+            print("FATAL: --model-dir is a single file; --base-dir is required", file=sys.stderr)
+            return 2
+        print(f"[ltx] loading transformer from single file {args.model_dir}", flush=True)
+        print(f"[ltx] loading other components from {args.base_dir}", flush=True)
+        transformer = LTXVideoTransformer3DModel.from_single_file(
+            args.model_dir, torch_dtype=torch.bfloat16
+        )
+        pipe = LTXPipeline.from_pretrained(
+            args.base_dir, transformer=transformer, torch_dtype=torch.bfloat16
+        )
+    else:
+        print(f"[ltx] loading pipeline from {args.model_dir} ...", flush=True)
+        pipe = LTXPipeline.from_pretrained(args.model_dir, torch_dtype=torch.bfloat16)
     pipe.enable_model_cpu_offload()
     pipe.vae.enable_tiling()   # long clip VAE decode won't fit 24 GB otherwise
     print(f"[ltx] pipeline ready in {time.time() - t0:.0f}s", flush=True)

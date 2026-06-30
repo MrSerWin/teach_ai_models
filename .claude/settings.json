@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh servin@10.0.0.190 'ps aux | grep \"python.*generate_ltx_opt\" | grep -v grep | head -2')"
+    ]
+  }
+}
