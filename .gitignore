@@ -15,5 +15,24 @@ experiments/05_video_gen/out/
 data/
 # Source recordings to be dubbed (audio, not code)
 scripts/Mult/
+# All audio is large and regenerable — never commit it (datasets, A/B samples,
+# probes, TTS renders). Keep only the text metadata (csv/jsonl/md) alongside.
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.ogg
+# Model weights / checkpoints — large, regenerable by training
+*.pth
+*.pt
+*.ckpt
+*.npy
+# TTS A/B sample renders (HTML pages are kept; their wavs are ignored above)
+experiments/07_tts_finetune/ab_pages/**/*.wav
+# TTS datasets — audio ignored above; metadata.csv/segments.jsonl kept.
+# Regenerable: 06 via scripts/run_all.py, 24k via scripts/recut_24k.py
+experiments/07_tts_finetune/vits_data/
+# Editor/backup cruft
+*.bak
 # macOS cruft
 .DS_Store

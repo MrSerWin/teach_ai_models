@@ -1,0 +1,294 @@
+{
+ "hf_sevil_1402": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1334": {
+  "comment": "в аудио нет \"vaqtını şeñ keçire ediler\"",
+  "verdict": "bad"
+ },
+ "hf_sevil_0740": {
+  "verdict": "bad",
+  "comment": "в аудио так \"Siz­den biriñiz añlatsın,añlatsın\""
+ },
+ "hf_sevil_0597": {
+  "verdict": "bad"
+ },
+ "hf_sevil_0558": {
+  "verdict": "bad"
+ },
+ "hf_sevil_0423": {
+  "verdict": "bad"
+ },
+ "hf_sevil_0863": {
+  "verdict": "bad",
+  "comment": "в аудио \"Peyda olğan müitni iç kim\""
+ },
+ "hf_sevil_1022": {
+  "verdict": "bad"
+ },
+ "hf_sevil_0659": {
+  "verdict": "bad"
+ },
+ "hf_sevil_1552": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0632": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1311": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0816": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1166": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1127": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0726": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1198": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0774": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1195": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1099": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0908": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0642": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0988": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0102": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1072": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0388": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0949": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0734": {
+  "verdict": "ok",
+  "comment": "другая тональность"
+ },
+ "hf_sevil_0280": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0957": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1130": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1148": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0320": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0304": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1322": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1296": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0995": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0028": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0746": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1366": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1259": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0920": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0347": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0445": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0645": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0209": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0172": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1510": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1392": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0510": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0596": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0134": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0399": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0504": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0660": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1562": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0482": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0569": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0051": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0137": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1485": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0945": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0561": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1180": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1276": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0216": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1543": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1030": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0406": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1250": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0092": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0307": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0369": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0284": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0180": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0540": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0954": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0318": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1041": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0722": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0839": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1337": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0583": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1521": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1509": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0124": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1497": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0907": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0024": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0515": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1010": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0082": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0112": {
+  "verdict": "ok"
+ },
+ "hf_sevil_0986": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1344": {
+  "verdict": "ok"
+ },
+ "hf_sevil_1513": {
+  "verdict": "ok"
+ }
+}

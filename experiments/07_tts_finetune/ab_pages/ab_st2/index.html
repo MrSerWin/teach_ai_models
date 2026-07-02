@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StyleTTS2 crh — A/B</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 1.2rem; line-height: 1.4; }
+  h1 { font-size: 1.35rem; margin: 0 0 .3rem; }
+  h2 { font-size: 1.05rem; margin: 1.8rem 0 .4rem; }
+  .note { color: #888; font-size: .85rem; margin: 0 0 1rem; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border-bottom: 1px solid #8884; padding: .45rem .5rem; text-align: left; vertical-align: top; }
+  th { position: sticky; top: 0; background: Canvas; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+  td.s { font-weight: 600; max-width: 22rem; }
+  audio { height: 34px; }
+  .star { color: #c60; }
+  .idx { color: #999; font-variant-numeric: tabular-nums; }
+  .leg { font-size: .82rem; color: #777; margin: .3rem 0 0; }
+</style>
+</head>
+<body>
+<h1>StyleTTS2 (crh, espeak-фонемы) — A/B</h1>
+<p class="note">StyleTTS2 дообучен от LibriTTS на нашем 3ч датасете Sevil, вход — IPA из espeak-ng <b>crh</b>
+(uvular /q/ = къ как отдельная фонема), выход 24 кГц. Чекпоинт <b>epoch 39</b>. Референс стиля: <code>avdet_avasy_0001.wav</code>, diffusion_steps=10.</p>
+
+<h2>Секция 1 — /q/ и близкие звуки (къ / гъ / нъ / ö ü ı)</h2>
+<p class="leg"><span class="star">StyleTTS2</span> должен произносить <b>q</b> как увулярный /q/. <b>tr_new</b> — графемный XTTS с турецким токеном (тут q → /k/, эталон «как НЕ надо»).</p>
+<table>
+  <thead><tr><th>#</th><th>Текст</th><th class="star">StyleTTS2 e39</th><th>tr_new (XTTS, /q/→/k/)</th></tr></thead>
+  <tbody id="q"></tbody>
+</table>
+
+<h2>Секция 1b — /q/ в несущих фразах (тюнинг сэмплера: steps=20, escale=1.3)</h2>
+<p class="leg">Те же q-звуки, но НЕ односложно (без вырожденного короткого входа) и с настроенным сэмплером. Проверяем, уходит ли «скрежет» и правильно ли звучит /q/.</p>
+<table>
+  <thead><tr><th>#</th><th>Текст</th><th class="star">StyleTTS2 e39 (carrier, tuned)</th></tr></thead>
+  <tbody id="qc"></tbody>
+</table>
+
+<h2>Секция 2 — полные фразы (натуральность + /q/ в контексте)</h2>
+<p class="leg"><span class="star">StyleTTS2</span> vs <b>merge_e90</b> (твой прежний лучший XTTS) vs <b>new_only</b> (XTTS только на новом датасете). Колонка <b>e39 tuned</b> = тот же чекпоинт, сэмплер steps=20/escale=1.3.</p>
+<table>
+  <thead><tr><th>#</th><th>Текст</th><th class="star">StyleTTS2 e39</th><th class="star">e39 tuned</th><th>merge_e90 (best XTTS)</th><th>new_only</th></tr></thead>
+  <tbody id="p"></tbody>
+</table>
+
+<script>
+const Q = ["Qırım","yoq","çoq qadar","qartbabam","aqşam oldı","qırmızı gül","ağır dağ","yağmur yağa","közlerim östi","üç kün küldi","Sabir bey-emce.","\"Ruslan Mamediyevge.","Meni eşitmey ediler.","Manasız, adaletsiz ölüm.","- Eh, Anifeşka, Anifeşka…"];
+const P = ["Sabir bey-emce.","\"Ruslan Mamediyevge.","Meni eşitmey ediler.","Manasız, adaletsiz ölüm.","- Eh, Anifeşka, Anifeşka…","Olar çoq laf ettiler.","Endi kelgen balaçıqnen ne yapacaqmız?","Gazetalarımnı başqa oğlan ketire edi.","Olardan mücizeviy nur saçıla edi.","Qomşularımnıñ munasebetleri açıqçası kergin edi.","Yüzü buzday qattı, yumruqlarını sıqtı.","Soñra sözde Vatan qalsa, şükürler etermiz.","– Bunı siz başladıñız, baqıñız nege ketirdi!","Bir çeşme bizge azlıq etecegini bilmedimi yoqsa?","Seydamet te buñı körip, artta qalmağa istemedi.","Nefret tolu közlerinden Aseneniñ tarafına qığılçımlar uçtı.","Kimniñ nevbeti kelgen olsa, çeşme ağzına hortumını tıqsın.","Nur olarnı ne añlap, ne cevap berip ola edi.","Etrafqa öz şavlelerini saça, yeşillike yeşillik, güzellikke güzellik bağışlamaqta.","Evge qaytqan soñ, apayına işnen bir qaç künge ketecegini ayttı."];
+const QC = ["Qırım güzel yerdir.","Bugün yoq dedi o.","Çoq qadar keldi.","Qartbabam evde otura.","Aqşam oldı endi.","Qırmızı gül açtı.","Ağır dağ yükseldi.","Yağmur yağa bugün.","Közlerim östi bir az.","Üç kün küldi o.","Qadeh masada tura.","Baqça içinde çoq ağaç bar.","Oquv kitabı qalın.","Toqta, bir söz aytacaqım.","Halq yırları güzel."];
+const pad = n => String(n).padStart(2,"0");
+function au(src){ return `<audio controls preload="none" src="${src}"></audio>`; }
+const qb = document.getElementById("q");
+Q.forEach((t,i)=>{ const n=pad(i+1);
+  qb.insertAdjacentHTML("beforeend",
+    `<tr><td class="idx">${n}</td><td class="s">${t}</td>`+
+    `<td>${au(`st2_e39_q/${n}.wav`)}</td>`+
+    `<td>${au(`tr_new_q/${n}.wav`)}</td></tr>`);
+});
+const qcb = document.getElementById("qc");
+QC.forEach((t,i)=>{ const n=pad(i+1);
+  qcb.insertAdjacentHTML("beforeend",
+    `<tr><td class="idx">${n}</td><td class="s">${t}</td>`+
+    `<td>${au(`st2_e39_qcarrier/${n}.wav`)}</td></tr>`);
+});
+const pb = document.getElementById("p");
+P.forEach((t,i)=>{ const n=pad(i+1);
+  pb.insertAdjacentHTML("beforeend",
+    `<tr><td class="idx">${n}</td><td class="s">${t}</td>`+
+    `<td>${au(`st2_e39_p20/${n}.wav`)}</td>`+
+    `<td>${au(`st2_e39_p20_v2/${n}.wav`)}</td>`+
+    `<td>${au(`merge_e90_p20/${n}.wav`)}</td>`+
+    `<td>${au(`new_only_p20/${n}.wav`)}</td></tr>`);
+});
+</script>
+</body>
+</html>
