@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TTS control</title>
+<style>
+  :root { color-scheme: light dark; --ok:#2e9e5b; --bad:#d0453b; --warn:#c8871a; --mut:#8a8a8a; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, sans-serif; margin:0; padding:1rem; line-height:1.45; }
+  h1 { font-size:1.2rem; margin:0 0 .8rem; }
+  h2 { font-size:.95rem; margin:1.4rem 0 .5rem; text-transform:uppercase; letter-spacing:.05em; color:var(--mut); }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.6rem; }
+  .card { border:1px solid #8883; border-radius:10px; padding:.7rem .8rem; }
+  .card .k { font-size:.72rem; color:var(--mut); text-transform:uppercase; letter-spacing:.04em; }
+  .card .v { font-size:1.15rem; font-weight:650; margin-top:.15rem; }
+  .dot { display:inline-block; width:.6rem; height:.6rem; border-radius:50%; margin-right:.35rem; }
+  .on { background:var(--ok); } .off { background:var(--bad); }
+  table { border-collapse:collapse; width:100%; font-size:.9rem; }
+  th,td { border-bottom:1px solid #8883; padding:.4rem .5rem; text-align:left; vertical-align:top; }
+  th { font-size:.72rem; color:var(--mut); text-transform:uppercase; }
+  .wrap { overflow-x:auto; }
+  button { font:inherit; padding:.35rem .7rem; border:1px solid #8886; border-radius:7px;
+           background:transparent; cursor:pointer; }
+  button:hover { border-color:#888; }
+  button.primary { background:#3b7ddd; color:#fff; border-color:#3b7ddd; }
+  .st { font-weight:600; }
+  .st.running { color:var(--warn); } .st.done { color:var(--ok); }
+  .st.failed, .st.canceled { color:var(--bad); }
+  .bar { height:5px; background:#8883; border-radius:3px; overflow:hidden; margin-top:.25rem; }
+  .bar > i { display:block; height:100%; background:#3b7ddd; }
+  pre { background:#8881; padding:.6rem; border-radius:8px; overflow-x:auto; font-size:.78rem; max-height:16rem; }
+  audio { height:32px; vertical-align:middle; }
+  .v-ok { color:var(--ok); } .v-bad { color:var(--bad); }
+  .muted { color:var(--mut); font-size:.82rem; }
+  .row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<h1>TTS control <span class="muted" id="clock"></span></h1>
+
+<div class="cards" id="cards"></div>
+<div class="row" style="margin-top:.7rem">
+  <button id="wol">⏰ Разбудить бокс (WoL)</button>
+  <button id="refresh">↻ Обновить</button>
+</div>
+
+<h2>Очередь и история</h2>
+<div class="wrap"><table>
+  <thead><tr><th>#</th><th>Тип</th><th>Устр.</th><th>Статус</th><th>Прогресс</th><th></th></tr></thead>
+  <tbody id="jobs"></tbody>
+</table></div>
+<pre id="log" hidden></pre>
+
+<h2>Сэмплы (слушать можно и когда бокс выключен)</h2>
+<div id="samples"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmtAge = s => s == null ? "—" : s < 90 ? `${s|0}s назад` :
+      s < 5400 ? `${(s/60)|0} мин назад` : `${(s/3600)|0} ч назад`;
+
+async function jget(u){ const r = await fetch(u); return r.ok ? r.json() : null; }
+async function jpost(u, body){
+  const r = await fetch(u, {method:"POST", headers:{"Content-Type":"application/json"},
+                            body: body ? JSON.stringify(body) : null});
+  return r.ok ? r.json() : null;
+}
+
+function renderStatus(s){
+  const hb = s.heartbeat || {};
+  const gpu = hb.gpu_used_mb != null ? `${(hb.gpu_used_mb/1024).toFixed(1)} / ${((hb.gpu_used_mb+hb.gpu_free_mb)/1024).toFixed(0)} ГБ` : "—";
+  const disk = hb.disk_free_gb != null ? `${hb.disk_free_gb.toFixed(0)} ГБ` : "—";
+  $("#cards").innerHTML = `
+    <div class="card"><div class="k">Бокс</div><div class="v">
+      <span class="dot ${s.online?'on':'off'}"></span>${s.online?'онлайн':'офлайн'}</div>
+      <div class="muted">${fmtAge(s.last_seen_sec)}</div></div>
+    <div class="card"><div class="k">GPU</div><div class="v">${gpu}</div>
+      <div class="muted">${s.gpu_busy?'занята обучением':'свободна'}</div></div>
+    <div class="card"><div class="k">Диск /mnt/c</div><div class="v">${disk}</div></div>
+    <div class="card"><div class="k">В очереди</div><div class="v">${s.queued}</div></div>`;
+}
+
+function renderJobs(jobs){
+  $("#jobs").innerHTML = jobs.map(j => {
+    const p = j.progress || {};
+    let prog = "—";
+    if (p.epoch){
+      const pct = ((p.epoch - 1 + (p.step||0)/(p.steps||1)) / (p.epochs||1) * 100).toFixed(1);
+      const loss = p.losses ? Object.entries(p.losses).slice(0,3)
+                    .map(([k,v]) => `${k} ${v}`).join(" · ") : "";
+      prog = `эпоха ${p.epoch}/${p.epochs}, шаг ${p.step}/${p.steps}
+              <div class="bar"><i style="width:${pct}%"></i></div>
+              <span class="muted">${loss}</span>`;
+    }
+    const canCancel = j.status === "queued" || j.status === "running";
+    return `<tr>
+      <td>${j.id}</td><td>${j.type}</td><td>${j.device}</td>
+      <td class="st ${j.status}">${j.status}</td>
+      <td>${prog}</td>
+      <td class="row">
+        <button onclick="showLog(${j.id})">лог</button>
+        ${canCancel ? `<button onclick="cancel(${j.id})">стоп</button>` : ""}
+      </td></tr>`;
+  }).join("");
+}
+
+async function showLog(id){
+  const r = await fetch(`/api/jobs/${id}/log?lines=300`);
+  const el = $("#log");
+  el.hidden = false;
+  el.textContent = await r.text() || "(пусто)";
+  el.scrollTop = el.scrollHeight;
+}
+async function cancel(id){ await jpost(`/api/jobs/${id}/cancel`); refresh(); }
+
+function renderSamples(items){
+  $("#samples").innerHTML = items.map(s => {
+    const vmap = Object.fromEntries((s.verdicts||[]).map(v => [v.clip_idx, v]));
+    const clips = Array.from({length: s.n_clips}, (_, i) => {
+      const n = String(i+1).padStart(2,"0");
+      const v = vmap[i+1] || {};
+      return `<tr>
+        <td>${n}</td>
+        <td><audio controls preload="none" src="/media/${s.rel_dir}/${n}.wav"></audio></td>
+        <td class="row">
+          <button class="${v.verdict==='ok'?'v-ok':''}" onclick="verdict(${s.id},${i+1},'ok')">✓</button>
+          <button class="${v.verdict==='bad'?'v-bad':''}" onclick="verdict(${s.id},${i+1},'bad')">✗</button>
+          <input placeholder="комментарий" value="${(v.comment||'').replace(/"/g,'&quot;')}"
+                 onchange="verdict(${s.id},${i+1},null,this.value)" style="flex:1;min-width:8rem">
+        </td></tr>`;
+    }).join("");
+    const p = s.params || {};
+    return `<h3 style="font-size:.9rem;margin:1rem 0 .3rem">
+        ${s.run} · e${s.epoch} · ${s.probe_set}
+        <span class="muted">steps=${p.steps ?? '—'} escale=${p.escale ?? '—'}</span></h3>
+      <div class="wrap"><table><tbody>${clips}</tbody></table></div>`;
+  }).join("") || `<p class="muted">Пока нет отрендеренных проб.</p>`;
+}
+
+async function verdict(sample_id, clip_idx, v, comment){
+  await jpost("/api/verdicts", {sample_id, clip_idx, verdict: v, comment: comment ?? null});
+  loadSamples();
+}
+
+async function refresh(){
+  const [s, j] = await Promise.all([jget("/api/status"), jget("/api/jobs?limit=25")]);
+  if (s) renderStatus(s);
+  if (j) renderJobs(j.jobs);
+  $("#clock").textContent = new Date().toLocaleTimeString();
+}
+async function loadSamples(){
+  const r = await jget("/api/samples?limit=20");
+  if (r) renderSamples(r.samples);
+}
+
+$("#wol").onclick = async () => {
+  const r = await jpost("/api/wol");
+  alert(r ? "Magic-пакет отправлен" : "Не вышло — задан ли BOX_MAC?");
+};
+$("#refresh").onclick = () => { refresh(); loadSamples(); };
+
+refresh(); loadSamples();
+setInterval(refresh, 5000);
+setInterval(loadSamples, 30000);
+</script>
+</body>
+</html>

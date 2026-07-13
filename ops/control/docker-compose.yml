@@ -1,0 +1,14 @@
+# Synology Container Manager: Project -> create from this compose file.
+services:
+  tts-control:
+    build: .
+    container_name: tts-control
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    # WoL magic packets must go out on the LAN broadcast domain. If the bridge
+    # network swallows them, switch to: network_mode: host (and drop `ports`).
+    volumes:
+      - /volume1/tts:/data
+    env_file:
+      - .env

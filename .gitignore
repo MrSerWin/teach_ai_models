@@ -36,3 +36,8 @@ experiments/07_tts_finetune/vits_data/
 *.bak
 # macOS cruft
 .DS_Store
+
+# ops: local secrets + control-plane data
+ops/**/config.env
+ops/**/.env
+ops/control/data/
