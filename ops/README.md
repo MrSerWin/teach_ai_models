@@ -136,8 +136,18 @@ offline, and links to the dashboard.
 
 ## Status
 
-Written and **tested end-to-end against a live FastAPI instance** (GPU lock,
-parallel CPU claim, progress/log streaming, sample upload, verdict round-trip,
-cancel, WoL, path-traversal guard). **Not yet deployed** — the GPU box is in
-repair and the NAS is powered off. Deploy checklist above is the next step once
-the hardware is back.
+**Deployed on the NAS (2026-07-13)** — Synology DS225+, DSM 7.3.2, Docker 24.0.2.
+Two containers on `/volume1`: `tts-control` (port 8080, data in `/volume1/tts`) and
+`tv-archiver` (records to `/volume1/tv/recordings`). Verified end-to-end: the
+tv-agent registers (`host=nas-tv`), the shared token claims jobs, and a live
+`record_tv` job went queued -> resolving -> recording -> done, producing an mp4 +
+thumbnail + json sidecar, with a live preview frame in the dashboard.
+
+NAS gotchas: the Docker socket is root-only and `sudo` needs a password, so the
+build must be run interactively on the NAS (`sudo bash /volume1/tts/deploy.sh`)
+or via Container Manager -> Project. `scp` to the NAS fails (sftp subsystem is
+off) — pipe files over `ssh nas "cat > dest"` instead.
+
+Still pending: the GPU box (`agent/`) is in repair, so `train_st2`/`synth_st2`
+jobs have no worker yet; `BOX_MAC` (Wake-on-LAN) and the Telegram bot token are
+unset, so those two features are inert until filled in.
