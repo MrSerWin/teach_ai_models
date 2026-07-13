@@ -55,6 +55,23 @@
 <h2>Сэмплы (слушать можно и когда бокс выключен)</h2>
 <div id="samples"></div>
 
+<h2>ТВ-запись (ATR / Millet)</h2>
+<div class="cards" id="tvcards"></div>
+<div class="row" style="margin-top:.6rem">
+  <select id="tvchan">
+    <option value="millet">Millet</option>
+    <option value="atr">ATR</option>
+  </select>
+  <input id="tvmin" type="number" min="1" max="360" value="90" style="width:5rem"> мин
+  <input id="tvtitle" placeholder="название (необязательно)" style="flex:1;min-width:9rem">
+  <button class="primary" id="tvrec">● Записать сейчас</button>
+</div>
+<div id="tvnow"></div>
+<div class="wrap"><table>
+  <thead><tr><th>Начало</th><th>Канал</th><th>Название</th><th>Статус</th><th></th></tr></thead>
+  <tbody id="tvjobs"></tbody>
+</table></div>
+
 <script>
 const $ = s => document.querySelector(s);
 const fmtAge = s => s == null ? "—" : s < 90 ? `${s|0}s назад` :
@@ -158,11 +175,78 @@ $("#wol").onclick = async () => {
   const r = await jpost("/api/wol");
   alert(r ? "Magic-пакет отправлен" : "Не вышло — задан ли BOX_MAC?");
 };
-$("#refresh").onclick = () => { refresh(); loadSamples(); };
 
-refresh(); loadSamples();
+// ---------- TV recording ----------
+const chanName = c => ({atr:"ATR", millet:"Millet"}[c] || c);
+const fmtWhen = iso => { const d = new Date(iso); return isNaN(d) ? "—" :
+  d.toLocaleString([], {day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"}); };
+
+function renderTV(s){
+  const ch = s.channels || {};
+  const dot = c => `<span class="dot ${ch[c]&&ch[c].live?'on':'off'}"></span>`;
+  const disk = s.disk_free_gb != null ? `${s.disk_free_gb.toFixed(0)} ГБ` : "—";
+  $("#tvcards").innerHTML = `
+    <div class="card"><div class="k">Рекордер (NAS)</div><div class="v">
+      <span class="dot ${s.online?'on':'off'}"></span>${s.online?'онлайн':'офлайн'}</div>
+      <div class="muted">${fmtAge(s.last_seen_sec)}</div></div>
+    <div class="card"><div class="k">ATR</div><div class="v">${dot('atr')}${ch.atr&&ch.atr.live?'в эфире':'офлайн'}</div></div>
+    <div class="card"><div class="k">Millet</div><div class="v">${dot('millet')}${ch.millet&&ch.millet.live?'в эфире':'офлайн'}</div></div>
+    <div class="card"><div class="k">Диск записей</div><div class="v">${disk}</div></div>`;
+
+  const jobs = s.jobs || [];
+  // currently recording — show live preview frames
+  const rec = jobs.filter(j => j.status==='running');
+  $("#tvnow").innerHTML = rec.map(j => {
+    const p = j.progress||{}, pct = p.duration ? Math.min(100,(p.elapsed||0)/p.duration*100).toFixed(0) : 0;
+    return `<div class="row" style="margin:.5rem 0;align-items:flex-start">
+      <img src="/shots/${j.id}.jpg?t=${Date.now()}" alt="preview" width="200"
+           style="border-radius:8px;background:#8882" onerror="this.style.opacity=.2">
+      <div>
+        <div><b>${chanName(p.channel||j.params.channel)}</b> — ${p.title||j.params.title||''}
+          <span class="st running">● ${p.phase||'recording'}</span></div>
+        <div class="muted">${p.elapsed||0}/${p.duration||j.params.duration_s||0} c</div>
+        <div class="bar" style="width:200px"><i style="width:${pct}%"></i></div>
+        <button onclick="cancel(${j.id})" style="margin-top:.4rem">■ Стоп</button>
+      </div></div>`;
+  }).join("");
+
+  $("#tvjobs").innerHTML = jobs.map(j => {
+    const p = j.params||{}, pr = j.progress||{};
+    const when = j.run_at ? new Date(j.run_at*1000).toLocaleString([], {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "ASAP";
+    const size = pr.size_bytes ? ` · ${(pr.size_bytes/1e6).toFixed(0)} МБ` : "";
+    const canStop = j.status==='queued' || j.status==='running';
+    return `<tr>
+      <td>${when}</td><td>${chanName(p.channel)}</td>
+      <td>${p.title||''} <span class="muted">${p.category||''}${size}</span></td>
+      <td class="st ${j.status}">${j.status}</td>
+      <td class="row">
+        <button onclick="showLog(${j.id})">лог</button>
+        ${canStop ? `<button onclick="cancel(${j.id})">стоп</button>` : ""}
+      </td></tr>`;
+  }).join("") || `<tr><td colspan="5" class="muted">Пока нет записей.</td></tr>`;
+}
+
+async function loadTV(){
+  const s = await jget("/api/tv/status");
+  if (s) renderTV(s);
+}
+
+$("#tvrec").onclick = async () => {
+  const channel = $("#tvchan").value;
+  const mins = Math.max(1, parseInt($("#tvmin").value)||90);
+  const title = $("#tvtitle").value.trim() || `${chanName(channel)} ручная запись`;
+  const r = await jpost("/api/jobs", {type:"record_tv", device:"tv",
+    params:{channel, title, duration_s: mins*60, category:"manual"}});
+  if (r && r.ok){ $("#tvtitle").value=""; loadTV(); }
+  else alert("Не удалось поставить запись");
+};
+
+$("#refresh").onclick = () => { refresh(); loadSamples(); loadTV(); };
+
+refresh(); loadSamples(); loadTV();
 setInterval(refresh, 5000);
 setInterval(loadSamples, 30000);
+setInterval(loadTV, 5000);
 </script>
 </body>
 </html>

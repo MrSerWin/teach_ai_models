@@ -12,13 +12,14 @@ from pathlib import Path
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    type        TEXT NOT NULL,               -- train_st2 | synth_st2 | recut_24k | audit
-    device      TEXT NOT NULL DEFAULT 'gpu', -- gpu (exclusive) | cpu (parallel)
+    type        TEXT NOT NULL,               -- train_st2 | synth_st2 | recut_24k | audit | record_tv
+    device      TEXT NOT NULL DEFAULT 'gpu', -- gpu (exclusive) | cpu (parallel) | tv (recording box)
     params      TEXT NOT NULL DEFAULT '{}',  -- JSON
     status      TEXT NOT NULL DEFAULT 'queued',
                                              -- queued|running|done|failed|canceled
     priority    INTEGER NOT NULL DEFAULT 0,  -- higher runs first
-    progress    TEXT NOT NULL DEFAULT '{}',  -- JSON: epoch, step, losses...
+    run_at      REAL,                        -- NULL = ASAP; else don't hand out before this epoch
+    progress    TEXT NOT NULL DEFAULT '{}',  -- JSON: epoch, step, losses... / tv: elapsed, duration
     error       TEXT,
     cancel      INTEGER NOT NULL DEFAULT 0,  -- agent polls this and kills the run
     created_at  REAL NOT NULL,
@@ -86,7 +87,15 @@ class DB:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(SCHEMA)
+        self._migrate()
         self._conn.commit()
+
+    def _migrate(self):
+        """Add columns introduced after the first deploy (SQLite has no
+        IF NOT EXISTS for columns, so probe pragma table_info)."""
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(jobs)")}
+        if "run_at" not in cols:
+            self._conn.execute("ALTER TABLE jobs ADD COLUMN run_at REAL")
 
     def q(self, sql, args=()):
         cur = self._conn.execute(sql, args)
@@ -104,10 +113,11 @@ class DB:
 
     # ---------- jobs ----------
 
-    def enqueue(self, type_, params, device="gpu", priority=0):
+    def enqueue(self, type_, params, device="gpu", priority=0, run_at=None):
         return self.x(
-            "INSERT INTO jobs(type, device, params, priority, created_at) VALUES(?,?,?,?,?)",
-            (type_, device, json.dumps(params), priority, time.time()),
+            "INSERT INTO jobs(type, device, params, priority, run_at, created_at) "
+            "VALUES(?,?,?,?,?,?)",
+            (type_, device, json.dumps(params), priority, run_at, time.time()),
         )
 
     def claim_next(self, device, gpu_busy):
@@ -117,13 +127,17 @@ class DB:
         one is already running. CPU jobs have no such lock, so probe renders can
         run *while* a training job holds the GPU — that's what lets you listen
         to samples without killing the run.
+
+        `run_at` gates scheduled work (TV recordings): a job with a future
+        run_at is not handed out until its window opens, even though it's queued.
         """
         if device == "gpu" and gpu_busy:
             return None
         row = self.one(
             "SELECT * FROM jobs WHERE status='queued' AND device=? "
+            "AND (run_at IS NULL OR run_at <= ?) "
             "ORDER BY priority DESC, id ASC LIMIT 1",
-            (device,),
+            (device, time.time()),
         )
         if not row:
             return None

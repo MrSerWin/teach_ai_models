@@ -57,8 +57,27 @@ menubar/         SwiftBar plugin — training epoch in the Mac menu bar
 | `synth_st2` | cpu *or* gpu | render probes (`synth_st2.py`), uploads wavs to the NAS |
 | `recut_24k` | cpu | rebuild the dataset at true 24 kHz |
 | `audit` | cpu | dataset alignment audit |
+| `record_tv` | tv | record an ATR/Millet film/cartoon to the NAS (see below) |
 
 Only these are accepted — the API never takes arbitrary shell.
+
+### TV recording (`device=tv`)
+
+The control plane doubles as the dashboard for **tv-archiver** (lives in the
+QOTools repo, `services/tv-archiver/`): it records films & cartoons off ATR and
+Millet to the NAS on a schedule. It reuses the exact same queue/agent pattern:
+
+- A **tv-agent** on the NAS polls `?device=tv` and records with `ffmpeg -c copy`
+  to `/volume1/tv`. Like the GPU box, it pulls — no inbound ports.
+- `run_at` gates scheduled recordings: a `record_tv` job with a future `run_at`
+  is not handed out until its window opens (the queue is otherwise ASAP).
+- The agent uploads a live JPEG frame every ~30 s (`/api/jobs/{id}/screenshot`);
+  the **ТВ-запись** tab shows it as a preview, plus per-channel on-air status
+  (`/api/tv/status`), a "record now" button, and Stop (reuses `cancel`).
+
+Recording is light (ffmpeg copy) and EPG is browserless, so it fits the 2 GB NAS.
+See `services/tv-archiver/docs/tv-archiver.md` in the QOTools repo for the full
+design and NAS deploy steps.
 
 ## Deploy — NAS (control plane)
 
@@ -73,6 +92,29 @@ Only these are accepted — the API never takes arbitrary shell.
 
 > Wake-on-LAN packets are L2 broadcasts. If the Docker bridge network swallows
 > them, switch the compose service to `network_mode: host`.
+
+## Deploy — tv-archiver (records TV to the NAS, uses THIS control plane)
+
+> **Cross-repo dependency — deploy together.** The **tv-archiver** service lives
+> in a different repo (**QOTools**, `services/tv-archiver/`) but has **no dashboard
+> or job queue of its own** — it depends on THIS control plane. Its `tv-agent`
+> polls this API (`?device=tv`), and the **ТВ-запись** tab in this dashboard is
+> its only UI. So the control plane must be up first, and the two are deployed as
+> a pair on the same NAS. If you redeploy/rename/re-token this control plane,
+> update the tv-agent's `TV_CONTROL` / `TV_TOKEN` to match or recordings stop.
+
+On the same NAS, alongside `control/`:
+
+1. Copy `services/tv-archiver/` from the QOTools repo to the NAS, e.g.
+   `/volume1/tv/app`; create `/volume1/tv/recordings` (recordings land here).
+2. Set `TV_TOKEN` = this control plane's **`TTS_TOKEN`**, and `TV_CONTROL` to the
+   control plane URL (e.g. `http://host.docker.internal:8080`).
+3. `docker compose -f docker-compose.nas.yml up -d --build` (image is
+   python+ffmpeg only — no browser — so it fits the 2 GB NAS).
+4. DSM → Task Scheduler → daily 05:30: `docker exec tv-archiver python plan_control.py`
+   (scrapes EPG and enqueues the day's `record_tv` jobs into this control plane).
+
+Full design + details: **`docs/tv-archiver.md`** in the QOTools repo (§7 «Деплой на НАС»).
 
 ## Deploy — box (agent)
 

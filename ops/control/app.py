@@ -36,7 +36,8 @@ DISK_WARN_GB = float(os.environ.get("DISK_WARN_GB", "50"))
 
 LOGS = DATA / "logs"
 SAMPLES = DATA / "samples"
-for d in (LOGS, SAMPLES):
+SHOTS = DATA / "shots"          # latest live-preview frame per TV recording job
+for d in (LOGS, SAMPLES, SHOTS):
     d.mkdir(parents=True, exist_ok=True)
 
 db = DB(DATA / "app.sqlite")
@@ -170,6 +171,42 @@ async def upload_sample(
     return {"ok": True, "sample_id": sid, "n": n}
 
 
+@app.post("/api/jobs/{job_id}/screenshot", dependencies=[Depends(auth)])
+async def upload_screenshot(job_id: int, file: UploadFile = File(...)):
+    """tv-agent posts a live-preview frame while a recording runs. We keep only
+    the latest frame per job (overwrite) — it's a monitor, not an archive."""
+    (SHOTS / f"{job_id}.jpg").write_bytes(await file.read())
+    return {"ok": True}
+
+
+@app.get("/shots/{job_id}.jpg")
+def screenshot(job_id: int):
+    p = SHOTS / f"{job_id}.jpg"
+    if not p.is_file():
+        raise HTTPException(404, "no frame yet")
+    return FileResponse(p)
+
+
+@app.get("/api/tv/status")
+def tv_status():
+    """Recording box liveness + per-channel stream state, from the tv-agent's
+    last heartbeat (host 'nas-tv'). Separate from the GPU box status."""
+    hb = db.last_heartbeat("nas-tv")
+    age = (time.time() - hb["ts"]) if hb else None
+    online = age is not None and age < OFFLINE_AFTER
+    meta = json.loads(hb["meta"]) if hb and hb.get("meta") else {}
+    tv_jobs = db.q(
+        "SELECT * FROM jobs WHERE type='record_tv' ORDER BY "
+        "COALESCE(run_at, created_at) DESC LIMIT 60")
+    return {
+        "online": online,
+        "last_seen_sec": age,
+        "channels": meta.get("channels", {}),   # {atr:{live:bool}, millet:{...}}
+        "disk_free_gb": hb["disk_free_gb"] if hb else None,
+        "jobs": [_job_out(j) for j in tv_jobs],
+    }
+
+
 # ---------------------------------------------------------------- UI API
 
 def _job_out(j):
@@ -199,18 +236,19 @@ class JobIn(BaseModel):
     params: dict = {}
     device: str = "gpu"
     priority: int = 0
+    run_at: Optional[float] = None      # epoch seconds; None = ASAP
 
 
-ALLOWED = {"train_st2", "synth_st2", "recut_24k", "audit"}
+ALLOWED = {"train_st2", "synth_st2", "recut_24k", "audit", "record_tv"}
 
 
 @app.post("/api/jobs")
 def create_job(j: JobIn):
     if j.type not in ALLOWED:
         raise HTTPException(400, f"unknown job type: {j.type}")
-    if j.device not in ("gpu", "cpu"):
-        raise HTTPException(400, "device must be gpu|cpu")
-    jid = db.enqueue(j.type, j.params, j.device, j.priority)
+    if j.device not in ("gpu", "cpu", "tv"):
+        raise HTTPException(400, "device must be gpu|cpu|tv")
+    jid = db.enqueue(j.type, j.params, j.device, j.priority, j.run_at)
     return {"ok": True, "id": jid}
 
 
