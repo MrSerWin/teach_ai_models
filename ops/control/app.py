@@ -40,6 +40,12 @@ SHOTS = DATA / "shots"          # latest live-preview frame per TV recording job
 for d in (LOGS, SAMPLES, SHOTS):
     d.mkdir(parents=True, exist_ok=True)
 
+# TV recordings live on their own NAS volume, written by the tv-agent. Mount the
+# same host dir here (docker-compose: /volume1/tv/recordings:/recordings) so the
+# dashboard can preview / download / delete finished recordings. The tv-agent
+# stores files under this same path, so job.progress.file resolves 1:1.
+RECORDINGS = Path(os.environ.get("TV_RECORDINGS", "/recordings"))
+
 db = DB(DATA / "app.sqlite")
 app = FastAPI(title="TTS control plane")
 
@@ -198,13 +204,91 @@ def tv_status():
     tv_jobs = db.q(
         "SELECT * FROM jobs WHERE type='record_tv' ORDER BY "
         "COALESCE(run_at, created_at) DESC LIMIT 60")
+    jobs = [_job_out(j) for j in tv_jobs]
+    for j in jobs:                              # annotate downloadable recordings
+        j["has_file"] = (j["status"] not in ("queued", "running")
+                         and _recording_path(j) is not None)
     return {
         "online": online,
         "last_seen_sec": age,
         "channels": meta.get("channels", {}),   # {atr:{live:bool}, millet:{...}}
         "disk_free_gb": hb["disk_free_gb"] if hb else None,
-        "jobs": [_job_out(j) for j in tv_jobs],
+        "jobs": jobs,
     }
+
+
+def _recording_path(job) -> Optional[Path]:
+    """Resolve a record_tv job's mp4 on disk, guarded against path traversal.
+
+    Returns the Path only if it exists under RECORDINGS; else None.
+    """
+    prog = job.get("progress") if isinstance(job.get("progress"), dict) \
+        else json.loads(job.get("progress") or "{}")
+    f = prog.get("file")
+    if not f:
+        return None
+    try:
+        p = Path(f).resolve()
+        root = RECORDINGS.resolve()
+    except Exception:
+        return None
+    if root not in p.parents or not p.is_file():
+        return None
+    return p
+
+
+@app.get("/tv/media/{job_id}")
+def tv_media(job_id: int):
+    """Stream/download a finished recording."""
+    job = db.one("SELECT * FROM jobs WHERE id=? AND type='record_tv'", (job_id,))
+    p = _recording_path(_job_out(job)) if job else None
+    if not p:
+        raise HTTPException(404, "recording not found")
+    return FileResponse(p, media_type="video/mp4", filename=p.name)
+
+
+@app.get("/tv/thumb/{job_id}.jpg")
+def tv_thumb(job_id: int):
+    """Preview frame: the sibling .jpg saved next to the recording (durable),
+    falling back to the last live frame uploaded during recording."""
+    job = db.one("SELECT * FROM jobs WHERE id=? AND type='record_tv'", (job_id,))
+    if job:
+        p = _recording_path(_job_out(job))
+        if p and p.with_suffix(".jpg").is_file():
+            return FileResponse(p.with_suffix(".jpg"))
+    shot = SHOTS / f"{job_id}.jpg"
+    if shot.is_file():
+        return FileResponse(shot)
+    raise HTTPException(404, "no thumbnail")
+
+
+@app.delete("/api/tv/recordings/{job_id}")
+def tv_delete(job_id: int):
+    """Delete a finished recording (mp4 + sidecar .jpg/.json) and mark the job
+    'deleted'. Refuses while the job is still recording — Stop it first."""
+    job = db.one("SELECT * FROM jobs WHERE id=? AND type='record_tv'", (job_id,))
+    if not job:
+        raise HTTPException(404, "no such recording")
+    if job["status"] == "running":
+        raise HTTPException(409, "still recording — stop it first")
+    p = _recording_path(_job_out(job))
+    removed = []
+    if p:
+        for f in (p, p.with_suffix(".jpg"), p.with_suffix(".json")):
+            try:
+                if f.is_file():
+                    f.unlink()
+                    removed.append(f.name)
+            except OSError as e:
+                raise HTTPException(500, f"delete failed: {e}")
+    shot = SHOTS / f"{job_id}.jpg"
+    if shot.is_file():
+        try:
+            shot.unlink()
+        except OSError:
+            pass
+    db.x("UPDATE jobs SET status='deleted' WHERE id=?", (job_id,))
+    return {"ok": True, "removed": removed}
 
 
 # ---------------------------------------------------------------- UI API

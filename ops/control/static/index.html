@@ -20,9 +20,10 @@
   th,td { border-bottom:1px solid #8883; padding:.4rem .5rem; text-align:left; vertical-align:top; }
   th { font-size:.72rem; color:var(--mut); text-transform:uppercase; }
   .wrap { overflow-x:auto; }
-  button { font:inherit; padding:.35rem .7rem; border:1px solid #8886; border-radius:7px;
-           background:transparent; cursor:pointer; }
-  button:hover { border-color:#888; }
+  button, .btn-like { font:inherit; padding:.35rem .7rem; border:1px solid #8886; border-radius:7px;
+           background:transparent; cursor:pointer; color:inherit; text-decoration:none;
+           display:inline-block; line-height:1; }
+  button:hover, .btn-like:hover { border-color:#888; }
   button.primary { background:#3b7ddd; color:#fff; border-color:#3b7ddd; }
   .st { font-weight:600; }
   .st.running { color:var(--warn); } .st.done { color:var(--ok); }
@@ -68,7 +69,7 @@
 </div>
 <div id="tvnow"></div>
 <div class="wrap"><table>
-  <thead><tr><th>Начало</th><th>Канал</th><th>Название</th><th>Статус</th><th></th></tr></thead>
+  <thead><tr><th>Превью</th><th>Начало</th><th>Канал</th><th>Название</th><th>Статус</th><th></th></tr></thead>
   <tbody id="tvjobs"></tbody>
 </table></div>
 
@@ -215,15 +216,34 @@ function renderTV(s){
     const when = j.run_at ? new Date(j.run_at*1000).toLocaleString([], {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "ASAP";
     const size = pr.size_bytes ? ` · ${(pr.size_bytes/1e6).toFixed(0)} МБ` : "";
     const canStop = j.status==='queued' || j.status==='running';
+    const canDelete = !['queued','running'].includes(j.status) && j.status!=='deleted';
+    // preview thumb links to the video (click to play in a new tab)
+    const thumb = (j.has_file || j.status==='running')
+      ? `<a href="${j.has_file?`/tv/media/${j.id}`:'#'}" target="_blank" title="открыть видео">
+           <img src="/tv/thumb/${j.id}.jpg?t=${Date.now()}" width="120"
+                style="border-radius:6px;background:#8882" onerror="this.style.display='none'"></a>`
+      : (j.status==='deleted' ? '<span class="muted">удалено</span>' : '—');
+    const dl = j.has_file
+      ? `<a class="btn-like" href="/tv/media/${j.id}" download title="скачать">⤓</a>` : "";
     return `<tr>
+      <td>${thumb}</td>
       <td>${when}</td><td>${chanName(p.channel)}</td>
       <td>${p.title||''} <span class="muted">${p.category||''}${size}</span></td>
       <td class="st ${j.status}">${j.status}</td>
       <td class="row">
         <button onclick="showLog(${j.id})">лог</button>
+        ${dl}
         ${canStop ? `<button onclick="cancel(${j.id})">стоп</button>` : ""}
+        ${canDelete ? `<button onclick="tvDelete(${j.id})" title="удалить">🗑</button>` : ""}
       </td></tr>`;
-  }).join("") || `<tr><td colspan="5" class="muted">Пока нет записей.</td></tr>`;
+  }).join("") || `<tr><td colspan="6" class="muted">Пока нет записей.</td></tr>`;
+}
+
+async function tvDelete(id){
+  if (!confirm("Удалить запись безвозвратно (файл на NAS)?")) return;
+  const r = await fetch(`/api/tv/recordings/${id}`, {method:"DELETE"});
+  if (r.ok) loadTV();
+  else alert("Не удалось удалить: " + (r.status===409 ? "сначала останови запись" : r.status));
 }
 
 async function loadTV(){

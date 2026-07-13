@@ -74,10 +74,16 @@ Millet to the NAS on a schedule. It reuses the exact same queue/agent pattern:
 - The agent uploads a live JPEG frame every ~30 s (`/api/jobs/{id}/screenshot`);
   the **ТВ-запись** tab shows it as a preview, plus per-channel on-air status
   (`/api/tv/status`), a "record now" button, and Stop (reuses `cancel`).
+- **Preview / download / delete finished recordings.** The control plane mounts
+  the recordings volume (`/volume1/tv/recordings:/recordings`) so the dashboard
+  can serve a thumbnail (`/tv/thumb/{id}.jpg`), stream/download the mp4
+  (`/tv/media/{id}`), and delete it (`DELETE /api/tv/recordings/{id}` → removes
+  mp4 + sidecar, marks the job `deleted`). Paths are guarded to stay under the
+  recordings root. **This mount is required for those buttons** — add it and
+  redeploy the control plane if you deployed before this change.
 
-Recording is light (ffmpeg copy) and EPG is browserless, so it fits the 2 GB NAS.
-See `services/tv-archiver/docs/tv-archiver.md` in the QOTools repo for the full
-design and NAS deploy steps.
+Recording is light (ffmpeg copy). See `services/tv-archiver/docs/tv-archiver.md`
+in the QOTools repo for the full design and NAS deploy steps.
 
 ## Deploy — NAS (control plane)
 

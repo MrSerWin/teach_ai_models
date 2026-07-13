@@ -10,5 +10,11 @@ services:
     # network swallows them, switch to: network_mode: host (and drop `ports`).
     volumes:
       - /volume1/tts:/data
+      # TV recordings (written by the tv-archiver container) — mounted so the
+      # dashboard can preview / download / delete them. Same path as the
+      # tv-agent's TV_ARCHIVER_OUTPUT so job.progress.file resolves 1:1.
+      - /volume1/tv/recordings:/recordings
+    environment:
+      - TV_RECORDINGS=/recordings
     env_file:
       - .env
