@@ -16,6 +16,7 @@ against accidents, not a hardened boundary.
 import json
 import os
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -33,6 +34,10 @@ BOX_MAC = os.environ.get("BOX_MAC", "")
 BOX_BROADCAST = os.environ.get("BOX_BROADCAST", "255.255.255.255")
 OFFLINE_AFTER = int(os.environ.get("OFFLINE_AFTER_SEC", "180"))
 DISK_WARN_GB = float(os.environ.get("DISK_WARN_GB", "50"))
+# TV recording reminders (Telegram): how long before start / before end to ping.
+TV_NOTIFY_LEAD_START = int(os.environ.get("TV_NOTIFY_LEAD_START_SEC", "600"))   # ~10 min
+TV_NOTIFY_LEAD_END = int(os.environ.get("TV_NOTIFY_LEAD_END_SEC", "300"))       # ~5 min
+DASH_URL = os.environ.get("DASH_URL", "")   # optional link included in reminders
 
 LOGS = DATA / "logs"
 SAMPLES = DATA / "samples"
@@ -238,13 +243,16 @@ def _recording_path(job) -> Optional[Path]:
 
 
 @app.get("/tv/media/{job_id}")
-def tv_media(job_id: int):
-    """Stream/download a finished recording."""
+def tv_media(job_id: int, download: bool = False):
+    """Stream a finished recording. Inline by default (for the in-page player,
+    with HTTP range/seek support); ?download=1 forces a file download."""
     job = db.one("SELECT * FROM jobs WHERE id=? AND type='record_tv'", (job_id,))
     p = _recording_path(_job_out(job)) if job else None
     if not p:
         raise HTTPException(404, "recording not found")
-    return FileResponse(p, media_type="video/mp4", filename=p.name)
+    if download:
+        return FileResponse(p, media_type="video/mp4", filename=p.name)
+    return FileResponse(p, media_type="video/mp4")   # inline, seekable
 
 
 @app.get("/tv/thumb/{job_id}.jpg")
@@ -264,8 +272,9 @@ def tv_thumb(job_id: int):
 
 @app.delete("/api/tv/recordings/{job_id}")
 def tv_delete(job_id: int):
-    """Delete a finished recording (mp4 + sidecar .jpg/.json) and mark the job
-    'deleted'. Refuses while the job is still recording — Stop it first."""
+    """Delete a finished recording completely: remove the files (mp4 + sidecar
+    .jpg/.json), the preview frame and the log, and drop the job row so it
+    disappears from the list. Refuses while still recording — Stop it first."""
     job = db.one("SELECT * FROM jobs WHERE id=? AND type='record_tv'", (job_id,))
     if not job:
         raise HTTPException(404, "no such recording")
@@ -281,13 +290,12 @@ def tv_delete(job_id: int):
                     removed.append(f.name)
             except OSError as e:
                 raise HTTPException(500, f"delete failed: {e}")
-    shot = SHOTS / f"{job_id}.jpg"
-    if shot.is_file():
+    for extra in (SHOTS / f"{job_id}.jpg", LOGS / f"{job_id}.log"):
         try:
-            shot.unlink()
+            extra.unlink(missing_ok=True)
         except OSError:
             pass
-    db.x("UPDATE jobs SET status='deleted' WHERE id=?", (job_id,))
+    db.x("DELETE FROM jobs WHERE id=?", (job_id,))
     return {"ok": True, "removed": removed}
 
 
@@ -419,6 +427,45 @@ def media(path: str):
 
 # ---------------------------------------------------------------- watchdog
 
+# TV reminders already sent, so we ping once (reset on restart is harmless).
+_tv_notified_start: set = set()
+_tv_notified_end: set = set()
+
+
+def _fmt_hm(epoch):
+    return datetime.fromtimestamp(epoch).strftime("%H:%M") if epoch else "?"
+
+
+def _tv_reminders():
+    """Ping Telegram ~10 min before a scheduled recording starts and ~5 min
+    before a running one ends (ads can overrun the schedule — a heads-up lets
+    you check the stream and extend/re-record if the film is still on)."""
+    now = time.time()
+    link = f"\n{DASH_URL}" if DASH_URL else ""
+
+    for j in db.q("SELECT * FROM jobs WHERE type='record_tv' AND status='queued' "
+                  "AND run_at IS NOT NULL"):
+        lead = j["run_at"] - now
+        if 0 < lead <= TV_NOTIFY_LEAD_START and j["id"] not in _tv_notified_start:
+            _tv_notified_start.add(j["id"])
+            p = json.loads(j["params"] or "{}")
+            tg(f"📺 <b>Скоро запись</b> — {p.get('title','?')} "
+               f"({p.get('channel','?')}) в {_fmt_hm(j['run_at'])} "
+               f"(через ~{int(lead//60)} мин).{link}")
+
+    for j in db.running_jobs():
+        if j["type"] != "record_tv" or j["id"] in _tv_notified_end:
+            continue
+        prog = json.loads(j["progress"] or "{}")
+        dur, el = prog.get("duration"), prog.get("elapsed")
+        if dur and el is not None and 0 <= (dur - el) <= TV_NOTIFY_LEAD_END:
+            _tv_notified_end.add(j["id"])
+            p = json.loads(j["params"] or "{}")
+            tg(f"⏹ <b>Запись скоро завершится</b> — {p.get('title','?')} "
+               f"({p.get('channel','?')}), осталось ~{int((dur-el)//60)} мин. "
+               f"Проверь, не идёт ли ещё фильм (реклама могла сдвинуть конец).{link}")
+
+
 @app.on_event("startup")
 async def watchdog():
     import asyncio
@@ -433,6 +480,7 @@ async def watchdog():
                 if stale and db.running_jobs() and not _alerted["offline"]:
                     _alerted["offline"] = True
                     tg("🔴 <b>GPU box went offline</b> with jobs still running.")
+                _tv_reminders()
                 db.prune_heartbeats()
             except Exception:
                 pass

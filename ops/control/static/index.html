@@ -3,80 +3,249 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TTS control</title>
+<title>Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { color-scheme: light dark; --ok:#2e9e5b; --bad:#d0453b; --warn:#c8871a; --mut:#8a8a8a; }
-  * { box-sizing: border-box; }
-  body { font-family: -apple-system, system-ui, sans-serif; margin:0; padding:1rem; line-height:1.45; }
-  h1 { font-size:1.2rem; margin:0 0 .8rem; }
-  h2 { font-size:.95rem; margin:1.4rem 0 .5rem; text-transform:uppercase; letter-spacing:.05em; color:var(--mut); }
-  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.6rem; }
-  .card { border:1px solid #8883; border-radius:10px; padding:.7rem .8rem; }
-  .card .k { font-size:.72rem; color:var(--mut); text-transform:uppercase; letter-spacing:.04em; }
-  .card .v { font-size:1.15rem; font-weight:650; margin-top:.15rem; }
-  .dot { display:inline-block; width:.6rem; height:.6rem; border-radius:50%; margin-right:.35rem; }
-  .on { background:var(--ok); } .off { background:var(--bad); }
-  table { border-collapse:collapse; width:100%; font-size:.9rem; }
-  th,td { border-bottom:1px solid #8883; padding:.4rem .5rem; text-align:left; vertical-align:top; }
-  th { font-size:.72rem; color:var(--mut); text-transform:uppercase; }
-  .wrap { overflow-x:auto; }
-  button, .btn-like { font:inherit; padding:.35rem .7rem; border:1px solid #8886; border-radius:7px;
-           background:transparent; cursor:pointer; color:inherit; text-decoration:none;
-           display:inline-block; line-height:1; }
-  button:hover, .btn-like:hover { border-color:#888; }
-  button.primary { background:#3b7ddd; color:#fff; border-color:#3b7ddd; }
-  .st { font-weight:600; }
-  .st.running { color:var(--warn); } .st.done { color:var(--ok); }
-  .st.failed, .st.canceled { color:var(--bad); }
-  .bar { height:5px; background:#8883; border-radius:3px; overflow:hidden; margin-top:.25rem; }
-  .bar > i { display:block; height:100%; background:#3b7ddd; }
-  pre { background:#8881; padding:.6rem; border-radius:8px; overflow-x:auto; font-size:.78rem; max-height:16rem; }
-  audio { height:32px; vertical-align:middle; }
-  .v-ok { color:var(--ok); } .v-bad { color:var(--bad); }
-  .muted { color:var(--mut); font-size:.82rem; }
-  .row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+  :root{
+    color-scheme: light dark;
+    --accent:  light-dark(oklch(0.52 0.12 235), oklch(0.74 0.11 235));
+    --accent-weak: light-dark(oklch(0.52 0.12 235 / .12), oklch(0.74 0.11 235 / .16));
+    --live:    light-dark(oklch(0.55 0.21 26),  oklch(0.68 0.20 26));
+    --live-weak: light-dark(oklch(0.55 0.21 26 / .12), oklch(0.68 0.20 26 / .18));
+    --ok:      light-dark(oklch(0.52 0.13 155), oklch(0.74 0.13 155));
+    --warn:    light-dark(oklch(0.60 0.12 68),  oklch(0.80 0.13 78));
+    --bad:     light-dark(oklch(0.55 0.19 26),  oklch(0.72 0.17 26));
+
+    --bg:      light-dark(oklch(0.975 0.006 250), oklch(0.185 0.012 255));
+    --surface: light-dark(oklch(1 0.003 250),     oklch(0.225 0.013 255));
+    --surface-2: light-dark(oklch(0.955 0.006 250), oklch(0.255 0.014 255));
+    --line:    light-dark(oklch(0.9 0.008 250),    oklch(0.32 0.014 255));
+    --ink:     light-dark(oklch(0.24 0.02 255),    oklch(0.94 0.008 250));
+    --ink-2:   light-dark(oklch(0.46 0.02 255),    oklch(0.70 0.012 250));
+    --ink-3:   light-dark(oklch(0.60 0.02 255),    oklch(0.55 0.012 250));
+
+    --radius: 14px;
+    --radius-s: 9px;
+    --shadow: 0 1px 2px oklch(0.2 0.02 255 / .06), 0 6px 20px -8px oklch(0.2 0.02 255 / .16);
+    --ease: cubic-bezier(.22,.61,.36,1);
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+    font-size:15px; line-height:1.5; letter-spacing:-.006em;
+    padding-bottom:4rem;
+  }
+  h1,h2,h3{ font-family:"Space Grotesk", ui-sans-serif, sans-serif; font-weight:600; letter-spacing:-.02em; margin:0; }
+  .num{ font-family:"Space Grotesk", sans-serif; font-feature-settings:"tnum" 1; }
+  a{ color:inherit; }
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    position:sticky; top:0; z-index:20;
+    display:flex; align-items:center; gap:1rem;
+    padding:.85rem clamp(1rem,4vw,2.2rem);
+    background:color-mix(in oklab, var(--bg) 82%, transparent);
+    backdrop-filter:saturate(1.4) blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{ display:flex; align-items:center; gap:.55rem; font-family:"Space Grotesk"; font-weight:700; font-size:1.05rem; letter-spacing:-.01em; }
+  .brand .rec{ width:.62rem; height:.62rem; border-radius:50%; background:var(--live);
+    box-shadow:0 0 0 0 var(--live); animation:pulse 2.4s var(--ease) infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 color-mix(in oklab,var(--live) 55%,transparent)} 70%{box-shadow:0 0 0 8px transparent} 100%{box-shadow:0 0 0 0 transparent} }
+  .brand small{ color:var(--ink-3); font-weight:500; font-family:"Hanken Grotesk"; }
+  .clock{ margin-left:auto; font-family:"Space Grotesk"; font-feature-settings:"tnum" 1; color:var(--ink-2); font-size:.9rem; }
+  .topbar .tb-actions{ display:flex; gap:.5rem; }
+
+  main{ max-width:1180px; margin:0 auto; padding:clamp(1rem,3vw,2rem) clamp(1rem,4vw,2.2rem); }
+
+  /* ---------- buttons ---------- */
+  button,.btn{
+    font:inherit; font-weight:600; cursor:pointer; color:var(--ink);
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-s);
+    padding:.44rem .8rem; display:inline-flex; align-items:center; gap:.4rem;
+    text-decoration:none; line-height:1; transition:.18s var(--ease);
+  }
+  button:hover,.btn:hover{ border-color:var(--ink-3); transform:translateY(-1px); }
+  button:active,.btn:active{ transform:translateY(0); }
+  button.primary{ background:var(--accent); border-color:transparent; color:oklch(0.99 0 0); }
+  button.primary:hover{ filter:brightness(1.06); }
+  button.ghost{ background:transparent; }
+  button.icon{ padding:.44rem .55rem; }
+  button.danger:hover{ border-color:var(--bad); color:var(--bad); }
+  .seg{ display:inline-flex; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-s); overflow:hidden; }
+  select,input{
+    font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--line);
+    border-radius:var(--radius-s); padding:.44rem .6rem; }
+  input:focus,select:focus{ outline:2px solid var(--accent-weak); outline-offset:1px; border-color:var(--accent); }
+
+  /* ---------- section heads ---------- */
+  .sec{ margin-top:clamp(1.6rem,4vw,2.6rem); }
+  .sec-head{ display:flex; align-items:baseline; gap:.7rem; margin-bottom:.9rem; }
+  .sec-head h2{ font-size:1.15rem; }
+  .sec-head .hint{ color:var(--ink-3); font-size:.82rem; }
+  .sec-head .rule{ flex:1; height:1px; background:var(--line); align-self:center; }
+
+  /* ---------- status strip ---------- */
+  .strip{ display:grid; grid-template-columns:1.5fr 1fr 1fr 1fr; gap:.7rem; }
+  @media(max-width:680px){ .strip{ grid-template-columns:1fr 1fr; } }
+  .stat{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:.85rem .95rem; box-shadow:var(--shadow); }
+  .stat .k{ font-size:.72rem; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-3); }
+  .stat .v{ font-family:"Space Grotesk"; font-feature-settings:"tnum" 1; font-size:1.4rem; font-weight:600; margin-top:.15rem; }
+  .stat .sub{ font-size:.8rem; color:var(--ink-3); margin-top:.1rem; }
+  .stat.lead{ display:flex; flex-direction:column; justify-content:center; }
+  .pill{ display:inline-flex; align-items:center; gap:.4rem; align-self:flex-start;
+    font-size:.8rem; font-weight:600; padding:.28rem .6rem; border-radius:999px; margin-bottom:.35rem; }
+  .pill.on{ background:var(--accent-weak); color:var(--accent); }
+  .pill.off{ background:var(--live-weak); color:var(--live); }
+  .dot{ width:.5rem; height:.5rem; border-radius:50%; display:inline-block; }
+  .dot.on{ background:var(--ok); } .dot.off{ background:var(--ink-3); }
+  .dot.live{ background:var(--live); animation:pulse 2s var(--ease) infinite; }
+
+  /* ---------- TV channel bar ---------- */
+  .tvbar{ display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; margin-bottom:1rem; }
+  .chan{ display:inline-flex; align-items:center; gap:.5rem; background:var(--surface);
+    border:1px solid var(--line); border-radius:999px; padding:.4rem .8rem; font-weight:600; font-size:.9rem; }
+  .chan .st{ font-size:.78rem; color:var(--ink-3); font-weight:500; }
+  .chan.live-on{ border-color:color-mix(in oklab,var(--live) 40%, var(--line)); }
+  .recbar{ margin-left:auto; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+  .recbar input#tvtitle{ width:12rem; }
+
+  /* ---------- inline player ---------- */
+  .player{ display:grid; grid-template-rows:0fr; transition:grid-template-rows .4s var(--ease); margin-bottom:1rem; }
+  .player.open{ grid-template-rows:1fr; }
+  .player>.inner{ overflow:hidden; }
+  .player .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); }
+  .player .phead{ display:flex; align-items:center; gap:.6rem; padding:.7rem .9rem; border-bottom:1px solid var(--line); }
+  .player .phead b{ font-family:"Space Grotesk"; }
+  .player .phead .meta{ color:var(--ink-3); font-size:.82rem; }
+  .player video{ width:100%; display:block; background:#000; max-height:64vh; }
+
+  /* ---------- now recording ---------- */
+  .live-now{ display:grid; gap:.8rem; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); margin-bottom:1rem; }
+  .live-card{ display:flex; gap:.9rem; background:var(--surface); border:1px solid color-mix(in oklab,var(--live) 30%,var(--line));
+    border-radius:var(--radius); padding:.7rem; box-shadow:var(--shadow); }
+  .live-card img{ width:132px; aspect-ratio:16/9; object-fit:cover; border-radius:var(--radius-s); background:var(--surface-2); }
+  .live-card .lc-body{ display:flex; flex-direction:column; gap:.2rem; min-width:0; flex:1; }
+  .live-card .lc-t{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .onair{ display:inline-flex; align-items:center; gap:.35rem; color:var(--live); font-size:.76rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+  .bar{ height:5px; background:var(--surface-2); border-radius:3px; overflow:hidden; margin-top:auto; }
+  .bar>i{ display:block; height:100%; background:var(--accent); border-radius:3px; transition:width .5s var(--ease); }
+
+  /* ---------- recordings grid ---------- */
+  .rec-grid{ display:grid; gap:.9rem; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); }
+  .rec{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    overflow:hidden; box-shadow:var(--shadow); transition:.2s var(--ease); }
+  .rec:hover{ transform:translateY(-3px); border-color:var(--ink-3); box-shadow:0 10px 30px -12px oklch(0.2 0.02 255 / .3); }
+  .rec .thumb{ position:relative; aspect-ratio:16/9; background:var(--surface-2); cursor:pointer; display:block; }
+  .rec .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .rec .thumb .play{ position:absolute; inset:0; display:grid; place-items:center; opacity:0; transition:.2s var(--ease);
+    background:linear-gradient(oklch(0.1 0.02 255 / 0), oklch(0.1 0.02 255 / .5)); color:#fff; }
+  .rec .thumb:hover .play{ opacity:1; }
+  .rec .thumb .play span{ width:44px; height:44px; border-radius:50%; background:oklch(1 0 0 / .92); color:#111;
+    display:grid; place-items:center; font-size:1rem; padding-left:3px; box-shadow:0 4px 14px oklch(0 0 0 / .3); }
+  .rec .thumb .chip{ position:absolute; left:.5rem; top:.5rem; font-size:.7rem; font-weight:700;
+    background:oklch(0.15 0.02 255 / .72); color:#fff; padding:.16rem .5rem; border-radius:6px; backdrop-filter:blur(4px); letter-spacing:.02em; }
+  .rec .thumb .noimg{ position:absolute; inset:0; display:grid; place-items:center; color:var(--ink-3); font-size:.8rem; }
+  .rec .meta{ padding:.6rem .7rem .7rem; }
+  .rec .meta .t{ font-weight:600; font-size:.92rem; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .rec .meta .row2{ display:flex; align-items:center; gap:.5rem; margin-top:.35rem; color:var(--ink-3); font-size:.78rem; }
+  .rec .meta .row2 .num{ color:var(--ink-2); }
+  .rec .acts{ display:flex; gap:.35rem; padding:0 .7rem .7rem; }
+  .rec .acts .btn, .rec .acts button{ padding:.36rem .5rem; font-size:.82rem; }
+  .rec .acts .grow{ flex:1; }
+  .status-tag{ font-size:.72rem; font-weight:700; padding:.15rem .45rem; border-radius:6px; text-transform:uppercase; letter-spacing:.03em; }
+  .status-tag.queued{ background:var(--surface-2); color:var(--ink-2); }
+  .status-tag.done{ background:color-mix(in oklab,var(--ok) 18%,transparent); color:var(--ok); }
+  .status-tag.failed,.status-tag.canceled{ background:var(--live-weak); color:var(--live); }
+
+  /* schedule (upcoming) list */
+  .sched-list{ display:flex; flex-direction:column; gap:.4rem; margin-bottom:1.3rem; }
+  .sched-day{ font-size:.74rem; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-3); margin:.7rem 0 .1rem; }
+  .sched-row{ display:grid; grid-template-columns:3.3rem auto 1fr auto; gap:.75rem; align-items:center;
+    background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--accent);
+    border-radius:var(--radius-s); padding:.5rem .75rem; }
+  .sched-row .time{ font-family:"Space Grotesk"; font-weight:600; font-feature-settings:"tnum" 1; }
+  .sched-row .st-title{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sched-row .cn{ display:inline-flex; align-items:center; gap:.35rem; font-size:.82rem; color:var(--ink-2); font-weight:600; }
+  .soon{ border-left-color:var(--live); }
+  .soon .time{ color:var(--live); }
+
+  /* ---------- training jobs ---------- */
+  .jobs{ display:flex; flex-direction:column; gap:.5rem; }
+  .job{ display:grid; grid-template-columns:auto 1fr auto; gap:.8rem; align-items:center;
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-s); padding:.6rem .8rem; }
+  .job .jid{ font-family:"Space Grotesk"; color:var(--ink-3); font-size:.85rem; }
+  .job .jtype{ font-weight:600; }
+  .job .jprog{ color:var(--ink-2); font-size:.85rem; }
+  .job .jacts{ display:flex; gap:.35rem; }
+  .empty{ color:var(--ink-3); font-size:.9rem; padding:.8rem 0; }
+  pre#log{ background:var(--surface-2); border:1px solid var(--line); color:var(--ink-2);
+    padding:.8rem; border-radius:var(--radius-s); overflow:auto; font-size:.78rem; max-height:18rem;
+    font-family:"Space Grotesk",ui-monospace,monospace; margin-top:.7rem; }
+
+  /* ---------- samples ---------- */
+  .sample h3{ font-size:.92rem; margin:1.1rem 0 .4rem; }
+  .sample h3 .muted{ color:var(--ink-3); font-weight:500; font-size:.8rem; }
+  .clip{ display:grid; grid-template-columns:auto 1fr auto; gap:.6rem; align-items:center; padding:.3rem 0; border-bottom:1px solid var(--line); }
+  .clip .ci{ font-family:"Space Grotesk"; color:var(--ink-3); font-size:.82rem; }
+  audio{ height:34px; width:100%; }
+  .v-ok{ color:var(--ok); border-color:var(--ok); }
+  .v-bad{ color:var(--bad); border-color:var(--bad); }
+  .muted{ color:var(--ink-3); }
+  @media(prefers-reduced-motion:reduce){ *{ animation:none!important; transition:none!important; } }
 </style>
 </head>
 <body>
-<h1>TTS control <span class="muted" id="clock"></span></h1>
 
-<div class="cards" id="cards"></div>
-<div class="row" style="margin-top:.7rem">
-  <button id="wol">⏰ Разбудить бокс (WoL)</button>
-  <button id="refresh">↻ Обновить</button>
-</div>
+<header class="topbar">
+  <div class="brand"><span class="rec"></span> Control <small id="clock"></small></div>
+  <div class="clock" style="margin-left:auto"></div>
+  <div class="tb-actions">
+    <button class="ghost" id="wol">Разбудить бокс</button>
+    <button class="ghost icon" id="refresh" title="Обновить">↻</button>
+  </div>
+</header>
 
-<h2>Очередь и история</h2>
-<div class="wrap"><table>
-  <thead><tr><th>#</th><th>Тип</th><th>Устр.</th><th>Статус</th><th>Прогресс</th><th></th></tr></thead>
-  <tbody id="jobs"></tbody>
-</table></div>
-<pre id="log" hidden></pre>
+<main>
+  <!-- ===== TV / broadcast ===== -->
+  <section class="sec">
+    <div class="sec-head"><h2>Эфир и записи</h2><span class="hint">ATR · Millet — только крымскотатарские</span><span class="rule"></span></div>
+    <div class="strip" id="cards"></div>
 
-<h2>Сэмплы (слушать можно и когда бокс выключен)</h2>
-<div id="samples"></div>
+    <div class="tvbar" style="margin-top:1rem" id="tvbar"></div>
+    <div class="player" id="tvplayer"><div class="inner"></div></div>
+    <div class="live-now" id="tvnow"></div>
+    <div id="tvsched"></div>
+    <div class="rec-grid" id="tvjobs"></div>
+  </section>
 
-<h2>ТВ-запись (ATR / Millet)</h2>
-<div class="cards" id="tvcards"></div>
-<div class="row" style="margin-top:.6rem">
-  <select id="tvchan">
-    <option value="millet">Millet</option>
-    <option value="atr">ATR</option>
-  </select>
-  <input id="tvmin" type="number" min="1" max="360" value="90" style="width:5rem"> мин
-  <input id="tvtitle" placeholder="название (необязательно)" style="flex:1;min-width:9rem">
-  <button class="primary" id="tvrec">● Записать сейчас</button>
-</div>
-<div id="tvnow"></div>
-<div class="wrap"><table>
-  <thead><tr><th>Превью</th><th>Начало</th><th>Канал</th><th>Название</th><th>Статус</th><th></th></tr></thead>
-  <tbody id="tvjobs"></tbody>
-</table></div>
+  <!-- ===== Training ===== -->
+  <section class="sec">
+    <div class="sec-head"><h2>Обучение</h2><span class="hint">StyleTTS2 · очередь и история</span><span class="rule"></span></div>
+    <div class="jobs" id="jobs"></div>
+    <pre id="log" hidden></pre>
+  </section>
+
+  <!-- ===== Samples ===== -->
+  <section class="sec">
+    <div class="sec-head"><h2>Пробы</h2><span class="hint">слушать можно и когда бокс выключен</span><span class="rule"></span></div>
+    <div id="samples"></div>
+  </section>
+</main>
 
 <script>
 const $ = s => document.querySelector(s);
-const fmtAge = s => s == null ? "—" : s < 90 ? `${s|0}s назад` :
+const esc = s => (s??"").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const chanName = c => ({atr:"ATR", millet:"Millet"}[c] || c || "");
+const fmtAge = s => s == null ? "—" : s < 90 ? `${s|0} с назад` :
       s < 5400 ? `${(s/60)|0} мин назад` : `${(s/3600)|0} ч назад`;
+const fmtWhen = ms => new Date(ms).toLocaleString([], {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+const mb = b => `${(b/1e6).toFixed(0)} МБ`;
 
 async function jget(u){ const r = await fetch(u); return r.ok ? r.json() : null; }
 async function jpost(u, body){
@@ -85,160 +254,165 @@ async function jpost(u, body){
   return r.ok ? r.json() : null;
 }
 
+/* ---------- box status ---------- */
 function renderStatus(s){
   const hb = s.heartbeat || {};
-  const gpu = hb.gpu_used_mb != null ? `${(hb.gpu_used_mb/1024).toFixed(1)} / ${((hb.gpu_used_mb+hb.gpu_free_mb)/1024).toFixed(0)} ГБ` : "—";
-  const disk = hb.disk_free_gb != null ? `${hb.disk_free_gb.toFixed(0)} ГБ` : "—";
+  const gpu = hb.gpu_used_mb != null
+    ? `${(hb.gpu_used_mb/1024).toFixed(1)}<span class="muted" style="font-size:.8rem"> / ${((hb.gpu_used_mb+hb.gpu_free_mb)/1024).toFixed(0)} ГБ</span>` : "—";
+  const disk = hb.disk_free_gb != null ? `${hb.disk_free_gb.toFixed(0)}<span class="muted" style="font-size:.8rem"> ГБ</span>` : "—";
   $("#cards").innerHTML = `
-    <div class="card"><div class="k">Бокс</div><div class="v">
-      <span class="dot ${s.online?'on':'off'}"></span>${s.online?'онлайн':'офлайн'}</div>
-      <div class="muted">${fmtAge(s.last_seen_sec)}</div></div>
-    <div class="card"><div class="k">GPU</div><div class="v">${gpu}</div>
-      <div class="muted">${s.gpu_busy?'занята обучением':'свободна'}</div></div>
-    <div class="card"><div class="k">Диск /mnt/c</div><div class="v">${disk}</div></div>
-    <div class="card"><div class="k">В очереди</div><div class="v">${s.queued}</div></div>`;
+    <div class="stat lead">
+      <div class="pill ${s.online?'on':'off'}"><span class="dot ${s.online?'on':'off'}"></span>${s.online?'бокс онлайн':'бокс офлайн'}</div>
+      <div class="k">GPU-бокс обучения</div><div class="sub">${fmtAge(s.last_seen_sec)}</div>
+    </div>
+    <div class="stat"><div class="k">GPU</div><div class="v num">${gpu}</div><div class="sub">${s.gpu_busy?'занята обучением':'свободна'}</div></div>
+    <div class="stat"><div class="k">Диск /mnt/c</div><div class="v num">${disk}</div></div>
+    <div class="stat"><div class="k">В очереди</div><div class="v num">${s.queued}</div></div>`;
 }
 
+/* ---------- training jobs ---------- */
 function renderJobs(jobs){
+  jobs = jobs.filter(j => j.type !== 'record_tv');
   $("#jobs").innerHTML = jobs.map(j => {
     const p = j.progress || {};
-    let prog = "—";
+    let prog = '<span class="muted">—</span>';
     if (p.epoch){
       const pct = ((p.epoch - 1 + (p.step||0)/(p.steps||1)) / (p.epochs||1) * 100).toFixed(1);
-      const loss = p.losses ? Object.entries(p.losses).slice(0,3)
-                    .map(([k,v]) => `${k} ${v}`).join(" · ") : "";
-      prog = `эпоха ${p.epoch}/${p.epochs}, шаг ${p.step}/${p.steps}
-              <div class="bar"><i style="width:${pct}%"></i></div>
-              <span class="muted">${loss}</span>`;
+      const loss = p.losses ? Object.entries(p.losses).slice(0,3).map(([k,v]) => `${k} ${v}`).join(" · ") : "";
+      prog = `эпоха ${p.epoch}/${p.epochs} · шаг ${p.step}/${p.steps}
+              <div class="bar" style="max-width:260px"><i style="width:${pct}%"></i></div>
+              <span class="muted">${esc(loss)}</span>`;
     }
     const canCancel = j.status === "queued" || j.status === "running";
-    return `<tr>
-      <td>${j.id}</td><td>${j.type}</td><td>${j.device}</td>
-      <td class="st ${j.status}">${j.status}</td>
-      <td>${prog}</td>
-      <td class="row">
-        <button onclick="showLog(${j.id})">лог</button>
-        ${canCancel ? `<button onclick="cancel(${j.id})">стоп</button>` : ""}
-      </td></tr>`;
-  }).join("");
+    return `<div class="job">
+      <span class="jid num">#${j.id}</span>
+      <div><span class="jtype">${esc(j.type)}</span> <span class="muted">${j.device}</span> · <span class="status-tag ${j.status}">${j.status}</span>
+        <div class="jprog">${prog}</div></div>
+      <div class="jacts">
+        <button class="ghost" onclick="showLog(${j.id})">лог</button>
+        ${canCancel ? `<button class="ghost danger" onclick="cancel(${j.id})">стоп</button>` : ""}
+      </div></div>`;
+  }).join("") || `<div class="empty">Очередь пуста. Задачи обучения появятся, когда бокс вернётся из ремонта.</div>`;
 }
-
 async function showLog(id){
   const r = await fetch(`/api/jobs/${id}/log?lines=300`);
-  const el = $("#log");
-  el.hidden = false;
-  el.textContent = await r.text() || "(пусто)";
-  el.scrollTop = el.scrollHeight;
+  const el = $("#log"); el.hidden = false;
+  el.textContent = await r.text() || "(пусто)"; el.scrollTop = el.scrollHeight;
 }
 async function cancel(id){ await jpost(`/api/jobs/${id}/cancel`); refresh(); }
 
-function renderSamples(items){
-  $("#samples").innerHTML = items.map(s => {
-    const vmap = Object.fromEntries((s.verdicts||[]).map(v => [v.clip_idx, v]));
-    const clips = Array.from({length: s.n_clips}, (_, i) => {
-      const n = String(i+1).padStart(2,"0");
-      const v = vmap[i+1] || {};
-      return `<tr>
-        <td>${n}</td>
-        <td><audio controls preload="none" src="/media/${s.rel_dir}/${n}.wav"></audio></td>
-        <td class="row">
-          <button class="${v.verdict==='ok'?'v-ok':''}" onclick="verdict(${s.id},${i+1},'ok')">✓</button>
-          <button class="${v.verdict==='bad'?'v-bad':''}" onclick="verdict(${s.id},${i+1},'bad')">✗</button>
-          <input placeholder="комментарий" value="${(v.comment||'').replace(/"/g,'&quot;')}"
-                 onchange="verdict(${s.id},${i+1},null,this.value)" style="flex:1;min-width:8rem">
-        </td></tr>`;
-    }).join("");
-    const p = s.params || {};
-    return `<h3 style="font-size:.9rem;margin:1rem 0 .3rem">
-        ${s.run} · e${s.epoch} · ${s.probe_set}
-        <span class="muted">steps=${p.steps ?? '—'} escale=${p.escale ?? '—'}</span></h3>
-      <div class="wrap"><table><tbody>${clips}</tbody></table></div>`;
-  }).join("") || `<p class="muted">Пока нет отрендеренных проб.</p>`;
-}
-
-async function verdict(sample_id, clip_idx, v, comment){
-  await jpost("/api/verdicts", {sample_id, clip_idx, verdict: v, comment: comment ?? null});
-  loadSamples();
-}
-
-async function refresh(){
-  const [s, j] = await Promise.all([jget("/api/status"), jget("/api/jobs?limit=25")]);
-  if (s) renderStatus(s);
-  if (j) renderJobs(j.jobs);
-  $("#clock").textContent = new Date().toLocaleTimeString();
-}
-async function loadSamples(){
-  const r = await jget("/api/samples?limit=20");
-  if (r) renderSamples(r.samples);
-}
-
-$("#wol").onclick = async () => {
-  const r = await jpost("/api/wol");
-  alert(r ? "Magic-пакет отправлен" : "Не вышло — задан ли BOX_MAC?");
-};
-
-// ---------- TV recording ----------
-const chanName = c => ({atr:"ATR", millet:"Millet"}[c] || c);
-const fmtWhen = iso => { const d = new Date(iso); return isNaN(d) ? "—" :
-  d.toLocaleString([], {day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"}); };
-
+/* ---------- TV ---------- */
 function renderTV(s){
   const ch = s.channels || {};
-  const dot = c => `<span class="dot ${ch[c]&&ch[c].live?'on':'off'}"></span>`;
-  const disk = s.disk_free_gb != null ? `${s.disk_free_gb.toFixed(0)} ГБ` : "—";
-  $("#tvcards").innerHTML = `
-    <div class="card"><div class="k">Рекордер (NAS)</div><div class="v">
-      <span class="dot ${s.online?'on':'off'}"></span>${s.online?'онлайн':'офлайн'}</div>
-      <div class="muted">${fmtAge(s.last_seen_sec)}</div></div>
-    <div class="card"><div class="k">ATR</div><div class="v">${dot('atr')}${ch.atr&&ch.atr.live?'в эфире':'офлайн'}</div></div>
-    <div class="card"><div class="k">Millet</div><div class="v">${dot('millet')}${ch.millet&&ch.millet.live?'в эфире':'офлайн'}</div></div>
-    <div class="card"><div class="k">Диск записей</div><div class="v">${disk}</div></div>`;
+  const chip = (c) => {
+    const live = ch[c] && ch[c].live;
+    return `<span class="chan ${live?'live-on':''}"><span class="dot ${live?'live':'off'}"></span>${chanName(c)}
+      <span class="st">${live?'в эфире':'офлайн'}</span></span>`;
+  };
+  const disk = s.disk_free_gb != null ? `${s.disk_free_gb.toFixed(0)} ГБ свободно` : "";
+  $("#tvbar").innerHTML = `
+    <span class="chan"><span class="dot ${s.online?'on':'off'}"></span>Рекордер (NAS)
+      <span class="st">${s.online?fmtAge(s.last_seen_sec):'офлайн'}</span></span>
+    ${chip('atr')} ${chip('millet')}
+    <span class="muted" style="font-size:.82rem">${disk}</span>
+    <span class="recbar">
+      <span class="seg">
+        <select id="tvchan" style="border:0;border-radius:0"><option value="millet">Millet</option><option value="atr">ATR</option></select>
+        <input id="tvmin" type="number" min="1" max="360" value="90" style="width:4.5rem;border:0;border-left:1px solid var(--line);border-radius:0" title="минут">
+      </span>
+      <input id="tvtitle" placeholder="название (необязательно)">
+      <button class="primary" id="tvrec"><span class="dot" style="background:#fff"></span>Записать</button>
+    </span>`;
+  $("#tvrec").onclick = recordNow;
 
   const jobs = s.jobs || [];
-  // currently recording — show live preview frames
-  const rec = jobs.filter(j => j.status==='running');
-  $("#tvnow").innerHTML = rec.map(j => {
-    const p = j.progress||{}, pct = p.duration ? Math.min(100,(p.elapsed||0)/p.duration*100).toFixed(0) : 0;
-    return `<div class="row" style="margin:.5rem 0;align-items:flex-start">
-      <img src="/shots/${j.id}.jpg?t=${Date.now()}" alt="preview" width="200"
-           style="border-radius:8px;background:#8882" onerror="this.style.opacity=.2">
-      <div>
-        <div><b>${chanName(p.channel||j.params.channel)}</b> — ${p.title||j.params.title||''}
-          <span class="st running">● ${p.phase||'recording'}</span></div>
-        <div class="muted">${p.elapsed||0}/${p.duration||j.params.duration_s||0} c</div>
-        <div class="bar" style="width:200px"><i style="width:${pct}%"></i></div>
-        <button onclick="cancel(${j.id})" style="margin-top:.4rem">■ Стоп</button>
+  const running = jobs.filter(j => j.status === 'running');
+  $("#tvnow").innerHTML = running.map(j => {
+    const p = j.progress||{}, pr = j.params||{};
+    const pct = p.duration ? Math.min(100,(p.elapsed||0)/p.duration*100).toFixed(0) : 0;
+    return `<div class="live-card">
+      <img src="/shots/${j.id}.jpg?t=${Date.now()}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="lc-body">
+        <span class="onair"><span class="dot live"></span>Идёт запись</span>
+        <span class="lc-t">${esc(p.title||pr.title||'')}</span>
+        <span class="muted" style="font-size:.82rem">${chanName(p.channel||pr.channel)} · <span class="num">${p.elapsed||0}/${p.duration||pr.duration_s||0}</span> c</span>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+        <div style="margin-top:.5rem"><button class="ghost danger" onclick="cancel(${j.id})">■ Стоп</button></div>
       </div></div>`;
   }).join("");
 
-  $("#tvjobs").innerHTML = jobs.map(j => {
+  // ---- schedule (upcoming) ----
+  const queued = jobs.filter(j => j.status === 'queued')
+                     .sort((a,b) => (a.run_at||0) - (b.run_at||0));
+  let curDay = '';
+  const srows = queued.map(j => {
+    const p = j.params||{}, d = new Date((j.run_at||0)*1000);
+    const day = d.toLocaleDateString([], {weekday:'long', day:'2-digit', month:'2-digit'});
+    const head = day !== curDay ? (curDay = day, `<div class="sched-day">${day}</div>`) : '';
+    const soon = j.run_at && (j.run_at*1000 - Date.now()) < 15*60*1000;
+    return head + `<div class="sched-row ${soon?'soon':''}">
+      <span class="time num">${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+      <span class="cn"><span class="dot ${ (s.channels?.[p.channel]?.live) ? 'live':'off'}"></span>${chanName(p.channel)}</span>
+      <span class="st-title">${esc(p.title||'')} <span class="muted">· ${esc(p.category||'')}</span></span>
+      <button class="ghost danger icon" onclick="tvDelete(${j.id})" title="Убрать из расписания">✕</button>
+    </div>`;
+  }).join('');
+  $("#tvsched").innerHTML = queued.length
+    ? `<div class="sec-head" style="margin-top:.2rem"><h3 style="font-size:1.02rem">Расписание</h3>
+         <span class="hint">${queued.length} запланировано</span><span class="rule"></span></div>
+       <div class="sched-list">${srows}</div>` : '';
+
+  // ---- recordings (done / failed) ----
+  const rest = jobs.filter(j => j.status !== 'running' && j.status !== 'queued');
+  $("#tvjobs").innerHTML = rest.map(j => {
     const p = j.params||{}, pr = j.progress||{};
-    const when = j.run_at ? new Date(j.run_at*1000).toLocaleString([], {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "ASAP";
-    const size = pr.size_bytes ? ` · ${(pr.size_bytes/1e6).toFixed(0)} МБ` : "";
-    const canStop = j.status==='queued' || j.status==='running';
-    const canDelete = !['queued','running'].includes(j.status) && j.status!=='deleted';
-    // preview thumb links to the video (click to play in a new tab)
-    const thumb = (j.has_file || j.status==='running')
-      ? `<a href="${j.has_file?`/tv/media/${j.id}`:'#'}" target="_blank" title="открыть видео">
-           <img src="/tv/thumb/${j.id}.jpg?t=${Date.now()}" width="120"
-                style="border-radius:6px;background:#8882" onerror="this.style.display='none'"></a>`
-      : (j.status==='deleted' ? '<span class="muted">удалено</span>' : '—');
-    const dl = j.has_file
-      ? `<a class="btn-like" href="/tv/media/${j.id}" download title="скачать">⤓</a>` : "";
-    return `<tr>
-      <td>${thumb}</td>
-      <td>${when}</td><td>${chanName(p.channel)}</td>
-      <td>${p.title||''} <span class="muted">${p.category||''}${size}</span></td>
-      <td class="st ${j.status}">${j.status}</td>
-      <td class="row">
-        <button onclick="showLog(${j.id})">лог</button>
-        ${dl}
-        ${canStop ? `<button onclick="cancel(${j.id})">стоп</button>` : ""}
-        ${canDelete ? `<button onclick="tvDelete(${j.id})" title="удалить">🗑</button>` : ""}
-      </td></tr>`;
-  }).join("") || `<tr><td colspan="6" class="muted">Пока нет записей.</td></tr>`;
+    const title = esc(p.title || 'Запись');
+    const has = j.has_file;
+    const thumb = has
+      ? `<a class="thumb" onclick="tvPlay(${j.id},'${title.replace(/'/g,"\\'")}');return false" href="#">
+           <img src="/tv/thumb/${j.id}.jpg?t=${Date.now()}" onerror="this.remove()">
+           <span class="chip">${chanName(p.channel)}</span>
+           <span class="play"><span>▶</span></span></a>`
+      : `<div class="thumb"><span class="chip">${chanName(p.channel)}</span>
+           <span class="noimg">${j.status==='failed'?'не удалось':'нет файла'}</span></div>`;
+    const size = pr.size_bytes ? `<span class="num">${mb(pr.size_bytes)}</span>` : '';
+    return `<div class="rec">
+      ${thumb}
+      <div class="meta">
+        <div class="t">${title}</div>
+        <div class="row2"><span class="status-tag ${j.status}">${j.status==='done'?'готово':j.status}</span>${size}
+          <span style="margin-left:auto">${esc(p.category||'')}</span></div>
+      </div>
+      <div class="acts">
+        ${has?`<button class="ghost grow" onclick="tvPlay(${j.id},'${title.replace(/'/g,"\\'")}')">▶ Смотреть</button>
+               <a class="btn ghost icon" href="/tv/media/${j.id}?download=1" download title="Скачать">⤓</a>`:'<span class="grow"></span>'}
+        <button class="ghost danger icon" onclick="tvDelete(${j.id})" title="Удалить">🗑</button>
+      </div></div>`;
+  }).join("") || `<div class="empty">Записей пока нет. Нажми «Записать» или дождись плановой записи из программы.</div>`;
 }
 
+function tvPlay(id, title){
+  const pl = $("#tvplayer");
+  pl.querySelector('.inner').innerHTML = `<div class="card">
+    <div class="phead"><b>${esc(title)}</b><span class="meta">воспроизведение</span>
+      <button class="ghost" style="margin-left:auto" onclick="tvPlayClose()">✕ закрыть</button></div>
+    <video controls autoplay playsinline src="/tv/media/${id}"></video></div>`;
+  pl.classList.add('open');
+  pl.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+function tvPlayClose(){
+  const pl = $("#tvplayer"); pl.classList.remove('open');
+  setTimeout(()=>{ pl.querySelector('.inner').innerHTML=''; }, 400);
+}
+
+async function recordNow(){
+  const channel = $("#tvchan").value;
+  const mins = Math.max(1, parseInt($("#tvmin").value)||90);
+  const title = $("#tvtitle").value.trim() || `${chanName(channel)} — ручная запись`;
+  const r = await jpost("/api/jobs", {type:"record_tv", device:"tv",
+    params:{channel, title, duration_s: mins*60, category:"manual"}});
+  if (r && r.ok) loadTV(); else alert("Не удалось поставить запись");
+}
 async function tvDelete(id){
   if (!confirm("Удалить запись безвозвратно (файл на NAS)?")) return;
   const r = await fetch(`/api/tv/recordings/${id}`, {method:"DELETE"});
@@ -246,27 +420,51 @@ async function tvDelete(id){
   else alert("Не удалось удалить: " + (r.status===409 ? "сначала останови запись" : r.status));
 }
 
-async function loadTV(){
-  const s = await jget("/api/tv/status");
-  if (s) renderTV(s);
+/* ---------- samples ---------- */
+function renderSamples(items){
+  $("#samples").innerHTML = items.map(s => {
+    const vmap = Object.fromEntries((s.verdicts||[]).map(v => [v.clip_idx, v]));
+    const clips = Array.from({length: s.n_clips}, (_, i) => {
+      const n = String(i+1).padStart(2,"0"), v = vmap[i+1] || {};
+      return `<div class="clip">
+        <span class="ci">${n}</span>
+        <audio controls preload="none" src="/media/${s.rel_dir}/${n}.wav"></audio>
+        <span style="display:flex;gap:.35rem;align-items:center">
+          <button class="ghost icon ${v.verdict==='ok'?'v-ok':''}" onclick="verdict(${s.id},${i+1},'ok')">✓</button>
+          <button class="ghost icon ${v.verdict==='bad'?'v-bad':''}" onclick="verdict(${s.id},${i+1},'bad')">✗</button>
+          <input placeholder="заметка" value="${esc(v.comment||'')}" onchange="verdict(${s.id},${i+1},null,this.value)" style="width:8rem">
+        </span></div>`;
+    }).join("");
+    const p = s.params || {};
+    return `<div class="sample"><h3>${esc(s.run)} · e${s.epoch} · ${esc(s.probe_set)}
+        <span class="muted">steps=${p.steps ?? '—'} escale=${p.escale ?? '—'}</span></h3>${clips}</div>`;
+  }).join("") || `<div class="empty">Пока нет отрендеренных проб. Они появятся, когда агент отрисует чекпоинт на CPU.</div>`;
+}
+async function verdict(sample_id, clip_idx, v, comment){
+  await jpost("/api/verdicts", {sample_id, clip_idx, verdict: v, comment: comment ?? null});
+  loadSamples();
 }
 
-$("#tvrec").onclick = async () => {
-  const channel = $("#tvchan").value;
-  const mins = Math.max(1, parseInt($("#tvmin").value)||90);
-  const title = $("#tvtitle").value.trim() || `${chanName(channel)} ручная запись`;
-  const r = await jpost("/api/jobs", {type:"record_tv", device:"tv",
-    params:{channel, title, duration_s: mins*60, category:"manual"}});
-  if (r && r.ok){ $("#tvtitle").value=""; loadTV(); }
-  else alert("Не удалось поставить запись");
+/* ---------- loops ---------- */
+async function refresh(){
+  const [s, j] = await Promise.all([jget("/api/status"), jget("/api/jobs?limit=25")]);
+  if (s) renderStatus(s);
+  if (j) renderJobs(j.jobs);
+  document.querySelectorAll(".clock").forEach(e => e.textContent = new Date().toLocaleTimeString());
+}
+async function loadTV(){ const s = await jget("/api/tv/status"); if (s) renderTV(s); }
+async function loadSamples(){ const r = await jget("/api/samples?limit=20"); if (r) renderSamples(r.samples); }
+
+$("#wol").onclick = async () => {
+  const r = await jpost("/api/wol");
+  alert(r ? "Magic-пакет отправлен" : "Не вышло — задан ли BOX_MAC?");
 };
+$("#refresh").onclick = () => { refresh(); loadTV(); loadSamples(); };
 
-$("#refresh").onclick = () => { refresh(); loadSamples(); loadTV(); };
-
-refresh(); loadSamples(); loadTV();
+refresh(); loadTV(); loadSamples();
 setInterval(refresh, 5000);
-setInterval(loadSamples, 30000);
 setInterval(loadTV, 5000);
+setInterval(loadSamples, 30000);
 </script>
 </body>
 </html>
