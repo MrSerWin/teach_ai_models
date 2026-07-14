@@ -84,10 +84,39 @@
 
   /* ---------- section heads ---------- */
   .sec{ margin-top:clamp(1.6rem,4vw,2.6rem); }
+  .sec:first-child{ margin-top:0; }
   .sec-head{ display:flex; align-items:baseline; gap:.7rem; margin-bottom:.9rem; }
   .sec-head h2{ font-size:1.15rem; }
   .sec-head .hint{ color:var(--ink-3); font-size:.82rem; }
   .sec-head .rule{ flex:1; height:1px; background:var(--line); align-self:center; }
+
+  /* top-level tabs — group the dashboard by purpose */
+  .tabs{ display:flex; gap:.25rem; margin:0 0 1.6rem; padding:.28rem;
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    width:max-content; max-width:100%; box-shadow:var(--shadow); position:sticky; top:.6rem; z-index:5; }
+  .tab{ appearance:none; border:0; background:transparent; color:var(--ink-2); font:inherit;
+    font-weight:650; font-size:.94rem; padding:.5rem 1.15rem; border-radius:var(--radius-s);
+    cursor:pointer; white-space:nowrap; transition:background .18s var(--ease), color .18s var(--ease); }
+  .tab:hover{ color:var(--ink); }
+  .tab.on{ background:var(--surface-2); color:var(--ink); box-shadow:inset 0 0 0 1px var(--line); }
+  .tab .badge{ margin-left:.45rem; font-size:.7rem; font-weight:700; color:var(--ink-3); }
+  .tab.on .badge{ color:var(--accent); }
+  .panel{ display:block; }
+  .panel[hidden]{ display:none; }
+
+  /* live channel preview cards (on-demand) */
+  .prev-grid{ display:grid; gap:1.1rem; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+  .prev-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    overflow:hidden; box-shadow:var(--shadow); }
+  .prev-img{ position:relative; aspect-ratio:16/9; background:#0b0b0d; display:grid; place-items:center; }
+  .prev-img img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .prev-img .ph{ color:var(--ink-3); font-size:.85rem; text-align:center; padding:1rem; }
+  .prev-img .chip{ position:absolute; top:.6rem; left:.6rem; display:inline-flex; align-items:center;
+    gap:.4rem; font-size:.7rem; font-weight:750; padding:.24rem .55rem; border-radius:999px;
+    background:oklch(0 0 0 / .58); color:#fff; }
+  .prev-foot{ display:flex; align-items:center; gap:.6rem; padding:.7rem .85rem; flex-wrap:wrap; }
+  .prev-foot .cn{ font-weight:700; font-size:1.02rem; }
+  .prev-foot .age{ font-size:.78rem; color:var(--ink-3); }
 
   /* ---------- status strip ---------- */
   .strip{ display:grid; grid-template-columns:1.5fr 1fr 1fr 1fr; gap:.7rem; }
@@ -166,14 +195,38 @@
   /* schedule (upcoming) list */
   .sched-list{ display:flex; flex-direction:column; gap:.4rem; margin-bottom:1.3rem; }
   .sched-day{ font-size:.74rem; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-3); margin:.7rem 0 .1rem; }
-  .sched-row{ display:grid; grid-template-columns:3.3rem auto 1fr auto; gap:.75rem; align-items:center;
+  .sched-row{ display:grid; grid-template-columns:3.6rem auto 1fr auto; gap:.75rem; align-items:center;
     background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--accent);
     border-radius:var(--radius-s); padding:.5rem .75rem; }
-  .sched-row .time{ font-family:"Space Grotesk"; font-weight:600; font-feature-settings:"tnum" 1; }
+  .sched-row .time{ font-family:"Space Grotesk"; font-weight:600; font-feature-settings:"tnum" 1;
+    display:flex; flex-direction:column; line-height:1.08; }
+  .time .t-loc{ font-weight:700; }
+  .time .t-src{ font-size:.64rem; font-weight:600; color:var(--ink-3); font-feature-settings:"tnum" 1; }
   .sched-row .st-title{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sched-row .cn{ display:inline-flex; align-items:center; gap:.35rem; font-size:.82rem; color:var(--ink-2); font-weight:600; }
   .soon{ border-left-color:var(--live); }
   .soon .time{ color:var(--live); }
+
+  /* channel program guide (EPG) */
+  .prog-row{ grid-template-columns:3.6rem auto 1fr auto auto;
+    border-left-color:color-mix(in oklab,var(--accent) 40%,var(--line)); }  /* not queued → needs your action */
+  .prog-row.rec-on{ border-left-color:var(--ok); }                          /* already in the queue */
+  .prog-row .dur{ font-size:.76rem; color:var(--ink-3); font-weight:500; }
+  .lang{ font-size:.64rem; font-weight:800; letter-spacing:.05em; padding:.1rem .35rem;
+    border-radius:5px; background:color-mix(in oklab,var(--accent) 22%,transparent); color:var(--accent);
+    text-transform:uppercase; }
+  /* action cell: scheduled programs show the status badge + a cancel button */
+  .pact{ display:inline-flex; align-items:center; gap:.4rem; }
+  /* status: this program is ALREADY in the recording queue (flat, green, not clickable) */
+  .pbadge{ font-size:.72rem; font-weight:700; padding:.18rem .55rem; border-radius:999px; white-space:nowrap;
+    display:inline-flex; align-items:center; gap:.3rem; }
+  .pbadge.sched{ background:color-mix(in oklab,var(--ok) 16%,transparent); color:var(--ok); }
+  /* action: add this program to the queue (outlined accent button, mirrors the top «Записать») */
+  .btn-rec{ font-size:.72rem; font-weight:700; padding:.28rem .75rem; border-radius:999px;
+    border:1px solid color-mix(in oklab,var(--accent) 55%,var(--line)); background:transparent;
+    color:var(--accent); cursor:pointer; white-space:nowrap; }
+  .btn-rec:hover{ background:color-mix(in oklab,var(--accent) 14%,transparent); }
+  .btn-rec:disabled{ opacity:.5; cursor:default; }
 
   /* ---------- training jobs ---------- */
   .jobs{ display:flex; flex-direction:column; gap:.5rem; }
@@ -206,42 +259,90 @@
   <div class="brand"><span class="rec"></span> Control <small id="clock"></small></div>
   <div class="clock" style="margin-left:auto"></div>
   <div class="tb-actions">
-    <button class="ghost" id="wol">Разбудить бокс</button>
     <button class="ghost icon" id="refresh" title="Обновить">↻</button>
   </div>
 </header>
 
 <main>
-  <!-- ===== TV / broadcast ===== -->
-  <section class="sec">
-    <div class="sec-head"><h2>Эфир и записи</h2><span class="hint">ATR · Millet — только крымскотатарские</span><span class="rule"></span></div>
-    <div class="strip" id="cards"></div>
+  <nav class="tabs" id="tabs">
+    <button class="tab" data-tab="rec">Запись</button>
+    <button class="tab" data-tab="preview">Превью</button>
+    <button class="tab" data-tab="ai">ИИ</button>
+  </nav>
 
-    <div class="tvbar" style="margin-top:1rem" id="tvbar"></div>
-    <div class="player" id="tvplayer"><div class="inner"></div></div>
-    <div class="live-now" id="tvnow"></div>
-    <div id="tvsched"></div>
-    <div class="rec-grid" id="tvjobs"></div>
-  </section>
+  <!-- ===== TAB: Запись (Millet · ATR) ===== -->
+  <div class="panel" id="panel-rec">
+    <section class="sec">
+      <div class="sec-head"><h2>Эфир и записи</h2><span class="hint">ATR · Millet — только крымскотатарские</span><span class="rule"></span></div>
+      <div class="tvbar" id="tvbar"></div>
+      <div class="player" id="tvplayer"><div class="inner"></div></div>
+      <div class="live-now" id="tvnow"></div>
+      <div class="rec-grid" id="tvjobs"></div>
+    </section>
 
-  <!-- ===== Training ===== -->
-  <section class="sec">
-    <div class="sec-head"><h2>Обучение</h2><span class="hint">StyleTTS2 · очередь и история</span><span class="rule"></span></div>
-    <div class="jobs" id="jobs"></div>
-    <pre id="log" hidden></pre>
-  </section>
+    <section class="sec">
+      <div class="sec-head"><h2>Программа</h2>
+        <span class="hint" id="epghint">когда идут фильмы и мультфильмы</span><span class="rule"></span></div>
+      <div id="tvprog"><div class="empty">Загрузка программы…</div></div>
+    </section>
+  </div>
 
-  <!-- ===== Samples ===== -->
-  <section class="sec">
-    <div class="sec-head"><h2>Пробы</h2><span class="hint">слушать можно и когда бокс выключен</span><span class="rule"></span></div>
-    <div id="samples"></div>
-  </section>
+  <!-- ===== TAB: Превью (live frame on demand) ===== -->
+  <div class="panel" id="panel-preview" hidden>
+    <section class="sec">
+      <div class="sec-head"><h2>Превью эфира</h2>
+        <span class="hint">живой кадр по запросу — чтобы решить, ставить ли запись</span><span class="rule"></span></div>
+      <div class="prev-grid" id="tvpreview"><div class="empty">Открываю превью…</div></div>
+    </section>
+  </div>
+
+  <!-- ===== TAB: ИИ (обучение · пробы) ===== -->
+  <div class="panel" id="panel-ai" hidden>
+    <section class="sec">
+      <div class="sec-head"><h2>Обучение</h2><span class="hint">StyleTTS2 · очередь и история</span>
+        <span class="rule"></span><button class="ghost" id="wol">Разбудить бокс</button></div>
+      <div class="strip" id="cards"></div>
+      <div class="jobs" id="jobs" style="margin-top:1rem"></div>
+      <pre id="log" hidden></pre>
+    </section>
+
+    <section class="sec">
+      <div class="sec-head"><h2>Пробы</h2><span class="hint">слушать можно и когда бокс выключен</span><span class="rule"></span></div>
+      <div id="samples"></div>
+    </section>
+  </div>
 </main>
 
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => (s??"").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Only touch the DOM when the markup actually changed — polling re-renders with
+// identical HTML would otherwise reflow/repaint (and reload images) every few
+// seconds, which is the visible flicker. Stash the last string on the element.
+function setHTML(el, html){ if (el && el.__h !== html){ el.__h = html; el.innerHTML = html; } }
+// Stable cache-buster: a value that changes ONLY when the underlying frame does,
+// so an unchanged image keeps the same URL and is served from cache (no flash).
+// `ageSec` = how old the frame is; now-age = its capture time (constant until a
+// new frame arrives). Falls back to a coarse time bucket when age is unknown.
+const frameBust = ageSec => ageSec != null
+  ? Math.round(Date.now()/1000 - ageSec)
+  : Math.floor(Date.now()/20000);   // 20 s bucket
 const chanName = c => ({atr:"ATR", millet:"Millet"}[c] || c || "");
+// Channels broadcast on Simferopol time; the browser renders in the viewer's own
+// zone. Show BOTH: big = your local time, small = the channel's original time —
+// but only add the small line when the two zones actually differ.
+const CH_TZ = "Europe/Simferopol";
+const _hm = (d, tz) => d.toLocaleTimeString(tz ? "ru-RU" : [],
+  tz ? {hour:"2-digit",minute:"2-digit",hour12:false,timeZone:tz}
+     : {hour:"2-digit",minute:"2-digit",hour12:false});
+function timeCell(iso){
+  const d = new Date(iso);
+  if (isNaN(d)) return '<span class="time num"><span class="t-loc">—</span></span>';
+  const loc = _hm(d), src = _hm(d, CH_TZ);
+  return `<span class="time num"><span class="t-loc">${loc}</span>`
+       + (src !== loc ? `<span class="t-src" title="время канала (Симферополь)">${src}</span>` : '')
+       + `</span>`;
+}
 const fmtAge = s => s == null ? "—" : s < 90 ? `${s|0} с назад` :
       s < 5400 ? `${(s/60)|0} мин назад` : `${(s/3600)|0} ч назад`;
 const fmtWhen = ms => new Date(ms).toLocaleString([], {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
@@ -260,20 +361,20 @@ function renderStatus(s){
   const gpu = hb.gpu_used_mb != null
     ? `${(hb.gpu_used_mb/1024).toFixed(1)}<span class="muted" style="font-size:.8rem"> / ${((hb.gpu_used_mb+hb.gpu_free_mb)/1024).toFixed(0)} ГБ</span>` : "—";
   const disk = hb.disk_free_gb != null ? `${hb.disk_free_gb.toFixed(0)}<span class="muted" style="font-size:.8rem"> ГБ</span>` : "—";
-  $("#cards").innerHTML = `
+  setHTML($("#cards"), `
     <div class="stat lead">
       <div class="pill ${s.online?'on':'off'}"><span class="dot ${s.online?'on':'off'}"></span>${s.online?'бокс онлайн':'бокс офлайн'}</div>
       <div class="k">GPU-бокс обучения</div><div class="sub">${fmtAge(s.last_seen_sec)}</div>
     </div>
     <div class="stat"><div class="k">GPU</div><div class="v num">${gpu}</div><div class="sub">${s.gpu_busy?'занята обучением':'свободна'}</div></div>
     <div class="stat"><div class="k">Диск /mnt/c</div><div class="v num">${disk}</div></div>
-    <div class="stat"><div class="k">В очереди</div><div class="v num">${s.queued}</div></div>`;
+    <div class="stat"><div class="k">В очереди</div><div class="v num">${s.queued}</div></div>`);
 }
 
 /* ---------- training jobs ---------- */
 function renderJobs(jobs){
   jobs = jobs.filter(j => j.type !== 'record_tv');
-  $("#jobs").innerHTML = jobs.map(j => {
+  setHTML($("#jobs"), jobs.map(j => {
     const p = j.progress || {};
     let prog = '<span class="muted">—</span>';
     if (p.epoch){
@@ -292,7 +393,7 @@ function renderJobs(jobs){
         <button class="ghost" onclick="showLog(${j.id})">лог</button>
         ${canCancel ? `<button class="ghost danger" onclick="cancel(${j.id})">стоп</button>` : ""}
       </div></div>`;
-  }).join("") || `<div class="empty">Очередь пуста. Задачи обучения появятся, когда бокс вернётся из ремонта.</div>`;
+  }).join("") || `<div class="empty">Очередь пуста. Задачи обучения появятся, когда бокс вернётся из ремонта.</div>`);
 }
 async function showLog(id){
   const r = await fetch(`/api/jobs/${id}/log?lines=300`);
@@ -310,28 +411,35 @@ function renderTV(s){
       <span class="st">${live?'в эфире':'офлайн'}</span></span>`;
   };
   const disk = s.disk_free_gb != null ? `${s.disk_free_gb.toFixed(0)} ГБ свободно` : "";
-  $("#tvbar").innerHTML = `
+  // Build the record form ONCE so typing into it isn't wiped by status polls; only
+  // the volatile status (recorder age, liveness, disk) is refreshed each tick.
+  if (!$("#tvbar").__built){
+    $("#tvbar").innerHTML = `
+      <span id="tvstatus" style="display:contents"></span>
+      <span class="recbar">
+        <span class="seg">
+          <select id="tvchan" style="border:0;border-radius:0"><option value="millet">Millet</option><option value="atr">ATR</option></select>
+          <input id="tvmin" type="number" min="1" max="360" value="90" style="width:4.5rem;border:0;border-left:1px solid var(--line);border-radius:0" title="минут">
+        </span>
+        <input id="tvtitle" placeholder="название (необязательно)">
+        <button class="primary" id="tvrec"><span class="dot" style="background:#fff"></span>Записать</button>
+      </span>`;
+    $("#tvbar").__built = true;
+    $("#tvrec").onclick = recordNow;
+  }
+  setHTML($("#tvstatus"), `
     <span class="chan"><span class="dot ${s.online?'on':'off'}"></span>Рекордер (NAS)
       <span class="st">${s.online?fmtAge(s.last_seen_sec):'офлайн'}</span></span>
     ${chip('atr')} ${chip('millet')}
-    <span class="muted" style="font-size:.82rem">${disk}</span>
-    <span class="recbar">
-      <span class="seg">
-        <select id="tvchan" style="border:0;border-radius:0"><option value="millet">Millet</option><option value="atr">ATR</option></select>
-        <input id="tvmin" type="number" min="1" max="360" value="90" style="width:4.5rem;border:0;border-left:1px solid var(--line);border-radius:0" title="минут">
-      </span>
-      <input id="tvtitle" placeholder="название (необязательно)">
-      <button class="primary" id="tvrec"><span class="dot" style="background:#fff"></span>Записать</button>
-    </span>`;
-  $("#tvrec").onclick = recordNow;
+    <span class="muted" style="font-size:.82rem">${disk}</span>`);
 
   const jobs = s.jobs || [];
   const running = jobs.filter(j => j.status === 'running');
-  $("#tvnow").innerHTML = running.map(j => {
+  setHTML($("#tvnow"), running.map(j => {
     const p = j.progress||{}, pr = j.params||{};
     const pct = p.duration ? Math.min(100,(p.elapsed||0)/p.duration*100).toFixed(0) : 0;
     return `<div class="live-card">
-      <img src="/shots/${j.id}.jpg?t=${Date.now()}" alt="" onerror="this.style.visibility='hidden'">
+      <img src="/shots/${j.id}.jpg?t=${frameBust()}" alt="" onerror="this.style.visibility='hidden'">
       <div class="lc-body">
         <span class="onair"><span class="dot live"></span>Идёт запись</span>
         <span class="lc-t">${esc(p.title||pr.title||'')}</span>
@@ -339,38 +447,20 @@ function renderTV(s){
         <div class="bar"><i style="width:${pct}%"></i></div>
         <div style="margin-top:.5rem"><button class="ghost danger" onclick="cancel(${j.id})">■ Стоп</button></div>
       </div></div>`;
-  }).join("");
+  }).join(""));
 
-  // ---- schedule (upcoming) ----
-  const queued = jobs.filter(j => j.status === 'queued')
-                     .sort((a,b) => (a.run_at||0) - (b.run_at||0));
-  let curDay = '';
-  const srows = queued.map(j => {
-    const p = j.params||{}, d = new Date((j.run_at||0)*1000);
-    const day = d.toLocaleDateString([], {weekday:'long', day:'2-digit', month:'2-digit'});
-    const head = day !== curDay ? (curDay = day, `<div class="sched-day">${day}</div>`) : '';
-    const soon = j.run_at && (j.run_at*1000 - Date.now()) < 15*60*1000;
-    return head + `<div class="sched-row ${soon?'soon':''}">
-      <span class="time num">${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
-      <span class="cn"><span class="dot ${ (s.channels?.[p.channel]?.live) ? 'live':'off'}"></span>${chanName(p.channel)}</span>
-      <span class="st-title">${esc(p.title||'')} <span class="muted">· ${esc(p.category||'')}</span></span>
-      <button class="ghost danger icon" onclick="tvDelete(${j.id})" title="Убрать из расписания">✕</button>
-    </div>`;
-  }).join('');
-  $("#tvsched").innerHTML = queued.length
-    ? `<div class="sec-head" style="margin-top:.2rem"><h3 style="font-size:1.02rem">Расписание</h3>
-         <span class="hint">${queued.length} запланировано</span><span class="rule"></span></div>
-       <div class="sched-list">${srows}</div>` : '';
+  // Queued recordings are shown in the unified «Программа» guide below (each
+  // scheduled program is flagged there with a cancel button) — no separate list.
 
   // ---- recordings (done / failed) ----
   const rest = jobs.filter(j => j.status !== 'running' && j.status !== 'queued');
-  $("#tvjobs").innerHTML = rest.map(j => {
+  setHTML($("#tvjobs"), rest.map(j => {
     const p = j.params||{}, pr = j.progress||{};
     const title = esc(p.title || 'Запись');
     const has = j.has_file;
     const thumb = has
       ? `<a class="thumb" onclick="tvPlay(${j.id},'${title.replace(/'/g,"\\'")}');return false" href="#">
-           <img src="/tv/thumb/${j.id}.jpg?t=${Date.now()}" onerror="this.remove()">
+           <img src="/tv/thumb/${j.id}.jpg" loading="lazy" onerror="this.remove()">
            <span class="chip">${chanName(p.channel)}</span>
            <span class="play"><span>▶</span></span></a>`
       : `<div class="thumb"><span class="chip">${chanName(p.channel)}</span>
@@ -388,7 +478,7 @@ function renderTV(s){
                <a class="btn ghost icon" href="/tv/media/${j.id}?download=1" download title="Скачать">⤓</a>`:'<span class="grow"></span>'}
         <button class="ghost danger icon" onclick="tvDelete(${j.id})" title="Удалить">🗑</button>
       </div></div>`;
-  }).join("") || `<div class="empty">Записей пока нет. Нажми «Записать» или дождись плановой записи из программы.</div>`;
+  }).join("") || `<div class="empty">Записей пока нет. Нажми «Записать» или дождись плановой записи из программы.</div>`);
 }
 
 function tvPlay(id, title){
@@ -419,10 +509,64 @@ async function tvDelete(id){
   if (r.ok) loadTV();
   else alert("Не удалось удалить: " + (r.status===409 ? "сначала останови запись" : r.status));
 }
+async function tvCancel(id){
+  // Remove a still-queued recording from the schedule (no file yet).
+  if (!confirm("Убрать из расписания? Запись не будет сделана.")) return;
+  const r = await fetch(`/api/tv/recordings/${id}`, {method:"DELETE"});
+  if (r.ok){ loadEPG(); loadTV(); }
+  else alert("Не удалось: " + (r.status===409 ? "уже идёт запись — останови её кнопкой Стоп" : r.status));
+}
+
+/* ---------- program guide (EPG) ---------- */
+const catName = c => ({film:'фильм', cartoon:'мультфильм'}[c] || c || '');
+function renderEPG(d){
+  const evs = d.events || [];
+  const hint = $("#epghint");
+  if (!evs.length){
+    setHTML($("#tvprog"), `<div class="empty">Программа появится после ближайшего обновления
+      планировщика (ежедневно). Пока показывать нечего.</div>`);
+    if (hint) hint.textContent = d.generated_at ? 'нет ближайших фильмов' : 'ещё не собрана';
+    return;
+  }
+  if (hint) hint.textContent = `что идёт по ТВ · ${evs.length} фильмов и мультфильмов · обновлено ${fmtWhen(d.generated_at)}`;
+  let curDay = '';
+  const rows = evs.map(e => {
+    const dt = new Date(e.start_iso);
+    const day = dt.toLocaleDateString([], {weekday:'long', day:'2-digit', month:'2-digit'});
+    const head = day !== curDay ? (curDay = day, `<div class="sched-day">${day}</div>`) : '';
+    const soon = (dt.getTime() - Date.now()) < 30*60*1000 && dt.getTime() > Date.now();
+    const lang = e.language === 'crh' ? `<span class="lang">кр.тат</span>` : '';
+    const dur = e.duration_min ? `<span class="dur">${e.duration_min}м</span>` : '';
+    const action = e.scheduled
+      ? `<span class="pact"><span class="pbadge sched" title="Будет записано">✓ в расписании</span>`
+        + (e.job_id ? `<button class="ghost danger icon" onclick="tvCancel(${e.job_id})"
+             title="Убрать из расписания">✕</button>` : '') + `</span>`
+      : `<button class="btn-rec" onclick="epgRecord('${e.channel}','${e.start_iso}',this)"
+                 title="Поставить эту передачу на запись">＋ Записать</button>`;
+    return head + `<div class="sched-row prog-row ${soon?'soon':''} ${e.scheduled?'rec-on':''}">
+      ${timeCell(e.start_iso)}
+      <span class="cn">${chanName(e.channel)}</span>
+      <span class="st-title">${esc(e.clean_title||e.raw_title)} ${lang}
+        <span class="muted">· ${catName(e.category)}</span></span>
+      ${dur}
+      ${action}
+    </div>`;
+  }).join('');
+  setHTML($("#tvprog"), `<div class="sched-list">${rows}</div>`);
+}
+async function epgRecord(channel, start_iso, btn){
+  if (btn){ btn.disabled = true; btn.textContent = '…'; }
+  const r = await fetch("/api/tv/epg/record", {method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({channel, start_iso})});
+  if (r.ok){ loadEPG(); loadTV(); }
+  else { alert("Не удалось поставить запись: " + (r.status===409?"уже в расписании":r.status));
+         if (btn){ btn.disabled = false; btn.textContent = '＋ Записать'; } }
+}
 
 /* ---------- samples ---------- */
 function renderSamples(items){
-  $("#samples").innerHTML = items.map(s => {
+  setHTML($("#samples"), items.map(s => {
     const vmap = Object.fromEntries((s.verdicts||[]).map(v => [v.clip_idx, v]));
     const clips = Array.from({length: s.n_clips}, (_, i) => {
       const n = String(i+1).padStart(2,"0"), v = vmap[i+1] || {};
@@ -438,11 +582,72 @@ function renderSamples(items){
     const p = s.params || {};
     return `<div class="sample"><h3>${esc(s.run)} · e${s.epoch} · ${esc(s.probe_set)}
         <span class="muted">steps=${p.steps ?? '—'} escale=${p.escale ?? '—'}</span></h3>${clips}</div>`;
-  }).join("") || `<div class="empty">Пока нет отрендеренных проб. Они появятся, когда агент отрисует чекпоинт на CPU.</div>`;
+  }).join("") || `<div class="empty">Пока нет отрендеренных проб. Они появятся, когда агент отрисует чекпоинт на CPU.</div>`);
 }
 async function verdict(sample_id, clip_idx, v, comment){
   await jpost("/api/verdicts", {sample_id, clip_idx, verdict: v, comment: comment ?? null});
   loadSamples();
+}
+
+/* ---------- live preview (on demand) ---------- */
+async function previewPing(){ try { await fetch("/api/tv/preview/ping", {method:"POST"}); } catch(e){} }
+const previewCard = c => `<div class="prev-card" data-ch="${c}">
+    <div class="prev-img">
+      <img alt="" hidden onerror="this.hidden=true">
+      <div class="ph"></div>
+      <span class="chip"><span class="dot"></span><span class="chip-t"></span></span>
+    </div>
+    <div class="prev-foot">
+      <span class="cn">${chanName(c)}</span>
+      <span class="age"></span>
+      <span style="flex:1"></span>
+      <span class="seg"><input id="pvmin-${c}" type="number" min="1" max="360" value="90"
+        style="width:4.2rem;border:0;border-radius:0" title="минут"></span>
+      <button class="primary rec-btn" onclick="recordNowCh('${c}')">● Записать</button>
+    </div></div>`;
+// Build the cards ONCE, then update image/status IN PLACE — rebuilding the grid
+// each poll would reset the minutes input and flash the image on every frame.
+function renderPreview(s){
+  const host = $("#tvpreview"), ch = s.channels || {};
+  if (!host.__built){ host.innerHTML = ["millet","atr"].map(previewCard).join(""); host.__built = true; }
+  ["millet","atr"].forEach(c => {
+    const card = host.querySelector(`[data-ch="${c}"]`); if (!card) return;
+    const info = ch[c] || {}, live = !!info.live, age = info.preview_age_sec;
+    const fresh = age != null && age < 120;
+    card.querySelector('.chip .dot').className = 'dot ' + (live ? 'live' : 'off');
+    card.querySelector('.chip-t').textContent = live ? 'в эфире' : 'офлайн';
+    const img = card.querySelector('img'), ph = card.querySelector('.ph');
+    if (fresh){
+      const url = `/tv/preview/${c}.jpg?t=${frameBust(age)}`;   // stable until a NEW frame
+      if (img.getAttribute('src') !== url) img.src = url;
+      img.hidden = false; ph.hidden = true;
+    } else {
+      img.hidden = true; ph.hidden = false;
+      ph.textContent = live ? 'ловлю кадр…' : 'канал сейчас офлайн';
+    }
+    card.querySelector('.age').textContent = age != null ? `кадр ${fmtAge(age)}` : (live ? 'ждём кадр…' : '');
+    card.querySelector('.rec-btn').disabled = !live;
+  });
+}
+async function loadPreview(){ const s = await jget("/api/tv/status"); if (s) renderPreview(s); }
+async function recordNowCh(c){
+  const mins = Math.max(1, parseInt($(`#pvmin-${c}`).value)||90);
+  const r = await jpost("/api/jobs", {type:"record_tv", device:"tv",
+    params:{channel:c, title:`${chanName(c)} — ручная запись`, duration_s:mins*60, category:"manual"}});
+  if (r && r.ok){ alert(`Запись ${chanName(c)} поставлена на ${mins} мин`); loadTV(); }
+  else alert("Не удалось поставить запись");
+}
+
+/* ---------- tabs ---------- */
+let activeTab = localStorage.getItem('ctab') || 'rec';
+function switchTab(t){
+  activeTab = t;
+  try { localStorage.setItem('ctab', t); } catch(e){}
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('.panel').forEach(p => p.hidden = (p.id !== 'panel-' + t));
+  if (t === 'rec'){ loadTV(); loadEPG(); }
+  else if (t === 'preview'){ previewPing(); loadPreview(); }
+  else if (t === 'ai'){ loadSamples(); }
 }
 
 /* ---------- loops ---------- */
@@ -453,18 +658,28 @@ async function refresh(){
   document.querySelectorAll(".clock").forEach(e => e.textContent = new Date().toLocaleTimeString());
 }
 async function loadTV(){ const s = await jget("/api/tv/status"); if (s) renderTV(s); }
+async function loadEPG(){ const d = await jget("/api/tv/epg"); if (d) renderEPG(d); }
 async function loadSamples(){ const r = await jget("/api/samples?limit=20"); if (r) renderSamples(r.samples); }
 
 $("#wol").onclick = async () => {
   const r = await jpost("/api/wol");
   alert(r ? "Magic-пакет отправлен" : "Не вышло — задан ли BOX_MAC?");
 };
-$("#refresh").onclick = () => { refresh(); loadTV(); loadSamples(); };
+$("#refresh").onclick = () => {
+  refresh();
+  if (activeTab === 'rec'){ loadTV(); loadEPG(); }
+  else if (activeTab === 'preview'){ previewPing(); loadPreview(); }
+  else if (activeTab === 'ai'){ loadSamples(); }
+};
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 
-refresh(); loadTV(); loadSamples();
+refresh();                 // header/box status is global
+switchTab(activeTab);      // load the active tab's data
 setInterval(refresh, 5000);
-setInterval(loadTV, 5000);
-setInterval(loadSamples, 30000);
+setInterval(() => { if (activeTab === 'rec') loadTV(); }, 5000);
+setInterval(() => { if (activeTab === 'rec') loadEPG(); }, 60000);
+setInterval(() => { if (activeTab === 'preview'){ previewPing(); loadPreview(); } }, 10000);
+setInterval(() => { if (activeTab === 'ai') loadSamples(); }, 30000);
 </script>
 </body>
 </html>

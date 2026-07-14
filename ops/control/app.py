@@ -16,7 +16,7 @@ against accidents, not a hardened boundary.
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
 
@@ -42,14 +42,34 @@ DASH_URL = os.environ.get("DASH_URL", "")   # optional link included in reminder
 LOGS = DATA / "logs"
 SAMPLES = DATA / "samples"
 SHOTS = DATA / "shots"          # latest live-preview frame per TV recording job
-for d in (LOGS, SAMPLES, SHOTS):
+PREVIEWS = DATA / "previews"     # latest on-demand live frame per channel (atr/millet)
+for d in (LOGS, SAMPLES, SHOTS, PREVIEWS):
     d.mkdir(parents=True, exist_ok=True)
+
+# On-demand stream preview: the dashboard "pings" while its Превью tab is open;
+# the agent only grabs live frames while previews are wanted, so we don't run
+# ffmpeg 24/7 for nobody. A ping keeps previews alive for PREVIEW_TTL seconds.
+PREVIEW_TTL = int(os.environ.get("TV_PREVIEW_TTL_SEC", "150"))
+_preview_wanted_until = 0.0
+TV_CHANNELS = ("atr", "millet")
 
 # TV recordings live on their own NAS volume, written by the tv-agent. Mount the
 # same host dir here (docker-compose: /volume1/tv/recordings:/recordings) so the
 # dashboard can preview / download / delete finished recordings. The tv-agent
 # stores files under this same path, so job.progress.file resolves 1:1.
 RECORDINGS = Path(os.environ.get("TV_RECORDINGS", "/recordings"))
+# Forward-looking schedule snapshot written by the tv-archiver planner
+# (plan_control.py) into the shared recordings volume. Read-only here: it drives
+# the "Программа" view so you can see every upcoming film/cartoon and manually
+# record the ones the planner won't auto-record (e.g. Russian-language on Millet).
+EPG_SNAPSHOT = Path(os.environ.get("TV_EPG_SNAPSHOT", str(RECORDINGS / "epg.json")))
+# Recording padding for MANUAL records started from the schedule (mirror the
+# planner's defaults so a hand-picked film gets the same generous ad-overrun tail
+# and minimum-window protection against an EPG gap shorter than the film itself).
+TV_PAD_PRE = int(os.environ.get("TV_ARCHIVER_PAD_PRE", "120"))
+TV_PAD_POST = int(os.environ.get("TV_ARCHIVER_PAD_POST", "120"))
+TV_PAD_POST_FILM = int(os.environ.get("TV_ARCHIVER_PAD_POST_FILM", "1200"))
+TV_FILM_MIN_MINUTES = int(os.environ.get("TV_FILM_MIN_MINUTES", "110"))
 
 db = DB(DATA / "app.sqlite")
 app = FastAPI(title="TTS control plane")
@@ -91,7 +111,10 @@ def heartbeat(hb: Heartbeat):
     # tell the agent which of its jobs were asked to stop
     canceled = [r["id"] for r in db.q(
         "SELECT id FROM jobs WHERE cancel=1 AND status='running'")]
-    return {"ok": True, "cancel": canceled}
+    # and whether anyone is watching the live preview right now (so it should
+    # grab channel frames) — avoids running ffmpeg when the tab is closed.
+    return {"ok": True, "cancel": canceled,
+            "preview_wanted": time.time() < _preview_wanted_until}
 
 
 @app.get("/api/jobs/next", dependencies=[Depends(auth)])
@@ -213,10 +236,16 @@ def tv_status():
     for j in jobs:                              # annotate downloadable recordings
         j["has_file"] = (j["status"] not in ("queued", "running")
                          and _recording_path(j) is not None)
+    channels = meta.get("channels", {})         # {atr:{live:bool}, millet:{...}}
+    for ch in TV_CHANNELS:                       # annotate live-preview freshness
+        pv = PREVIEWS / f"{ch}.jpg"
+        channels.setdefault(ch, {})["preview_age_sec"] = (
+            time.time() - pv.stat().st_mtime) if pv.is_file() else None
     return {
         "online": online,
         "last_seen_sec": age,
-        "channels": meta.get("channels", {}),   # {atr:{live:bool}, millet:{...}}
+        "channels": channels,
+        "preview_wanted": time.time() < _preview_wanted_until,
         "disk_free_gb": hb["disk_free_gb"] if hb else None,
         "jobs": jobs,
     }
@@ -297,6 +326,127 @@ def tv_delete(job_id: int):
             pass
     db.x("DELETE FROM jobs WHERE id=?", (job_id,))
     return {"ok": True, "removed": removed}
+
+
+@app.post("/api/tv/preview/ping")
+def preview_ping():
+    """The dashboard calls this while the Превью tab is open, so the agent knows
+    to grab live channel frames. No auth: it only sets a short 'someone is
+    watching' flag, leaks nothing."""
+    global _preview_wanted_until
+    _preview_wanted_until = time.time() + PREVIEW_TTL
+    return {"ok": True, "ttl": PREVIEW_TTL}
+
+
+@app.get("/api/tv/preview/wanted")
+def preview_wanted_flag():
+    """The agent polls this cheaply so it can start grabbing frames within seconds
+    of the tab opening (rather than waiting for its next 30 s heartbeat)."""
+    return {"wanted": time.time() < _preview_wanted_until}
+
+
+@app.post("/api/tv/preview/{channel}", dependencies=[Depends(auth)])
+async def upload_preview(channel: str, file: UploadFile = File(...)):
+    """Agent uploads a fresh live frame for a channel (on-demand preview)."""
+    if channel not in TV_CHANNELS:
+        raise HTTPException(400, "unknown channel")
+    (PREVIEWS / f"{channel}.jpg").write_bytes(await file.read())
+    return {"ok": True}
+
+
+@app.get("/tv/preview/{channel}.jpg")
+def get_preview(channel: str):
+    if channel not in TV_CHANNELS:
+        raise HTTPException(404, "unknown channel")
+    p = PREVIEWS / f"{channel}.jpg"
+    if not p.is_file():
+        raise HTTPException(404, "no preview yet")
+    return FileResponse(p, media_type="image/jpeg")
+
+
+def _scheduled_map() -> dict:
+    """{(channel, program_start_iso): job_id} of record_tv jobs already queued or
+    running, so the guide can both flag scheduled programs AND cancel them."""
+    m = {}
+    for j in db.q("SELECT id, params FROM jobs WHERE type='record_tv' "
+                  "AND status IN ('queued','running')"):
+        try:
+            p = json.loads(j["params"] or "{}")
+        except (ValueError, TypeError):
+            continue
+        if p.get("channel") and p.get("program_start_iso"):
+            m[(p["channel"], p["program_start_iso"])] = j["id"]
+    return m
+
+
+@app.get("/api/tv/epg")
+def tv_epg():
+    """The upcoming schedule of films & cartoons on both channels, written daily by
+    the tv-archiver planner. Each program carries a `decision` (record / review /
+    not_crh), `scheduled` = whether a record job is queued, and `job_id` to cancel
+    it. This is the single schedule view — it shows both what will record and what
+    won't (with a one-click record button)."""
+    try:
+        data = json.loads(EPG_SNAPSHOT.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"generated_at": None, "events": [], "stale": True}
+    now = datetime.now().astimezone()
+    smap = _scheduled_map()
+    events = []
+    for e in data.get("events", []):
+        try:
+            if datetime.fromisoformat(e["end_iso"]) <= now:
+                continue                       # already finished — drop it
+        except (KeyError, ValueError):
+            pass
+        e = dict(e)
+        jid = smap.get((e.get("channel"), e.get("start_iso")))
+        e["scheduled"] = jid is not None
+        e["job_id"] = jid
+        events.append(e)
+    return {"generated_at": data.get("generated_at"), "events": events, "stale": False}
+
+
+class EpgRecord(BaseModel):
+    channel: str
+    start_iso: str                             # must match a program in the snapshot
+
+
+@app.post("/api/tv/epg/record")
+def tv_epg_record(r: EpgRecord):
+    """Manually queue a recording for a program shown in the schedule (e.g. a film
+    the planner skipped). Looks the program up in the snapshot for its exact times,
+    so the caller can't inject arbitrary windows."""
+    try:
+        data = json.loads(EPG_SNAPSHOT.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise HTTPException(503, "schedule not available yet")
+    prog = next((e for e in data.get("events", [])
+                 if e.get("channel") == r.channel and e.get("start_iso") == r.start_iso), None)
+    if not prog:
+        raise HTTPException(404, "program not in schedule")
+    if (r.channel, r.start_iso) in _scheduled_map():
+        raise HTTPException(409, "already scheduled")
+    start = datetime.fromisoformat(prog["start_iso"])
+    end = datetime.fromisoformat(prog["end_iso"])
+    is_film = prog.get("category") == "film"
+    if is_film:                                 # min window + bigger tail (see planner)
+        floor_end = start + timedelta(minutes=TV_FILM_MIN_MINUTES)
+        if floor_end > end:
+            end = floor_end
+    pad_post = TV_PAD_POST_FILM if is_film else TV_PAD_POST
+    w_start = start - timedelta(seconds=TV_PAD_PRE)
+    duration_s = int((end - start).total_seconds()) + TV_PAD_PRE + pad_post
+    jid = db.enqueue("record_tv", {
+        "channel": r.channel,
+        "title": prog.get("clean_title") or prog.get("raw_title"),
+        "category": prog.get("category"),
+        "duration_s": duration_s,
+        "confidence": prog.get("confidence"),
+        "program_start_iso": prog["start_iso"],
+        "manual": True,
+    }, "tv", 0, w_start.timestamp())
+    return {"ok": True, "id": jid}
 
 
 # ---------------------------------------------------------------- UI API

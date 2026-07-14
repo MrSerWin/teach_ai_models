@@ -74,6 +74,17 @@ Millet to the NAS on a schedule. It reuses the exact same queue/agent pattern:
 - The agent uploads a live JPEG frame every ~30 s (`/api/jobs/{id}/screenshot`);
   the **ТВ-запись** tab shows it as a preview, plus per-channel on-air status
   (`/api/tv/status`), a "record now" button, and Stop (reuses `cancel`).
+- **Программа — the single schedule view.** The planner writes the full upcoming
+  schedule of films & cartoons (`epg.json` in the recordings volume); the dashboard
+  renders it as a day-grouped guide (`/api/tv/epg`) so you can see *when* things air
+  AND what will record — one list, no separate queue. Each row shows both the
+  viewer's local time and the channel's Simferopol time. Scheduled programs show a
+  "✓ в расписании" badge + a cancel (✕) that drops the queued job (`job_id` comes
+  from the endpoint); programs the planner won't auto-record (Russian on Millet, or
+  low confidence) show a **Записать** button that queues them on demand
+  (`POST /api/tv/epg/record`, times looked up from the snapshot so windows can't be
+  spoofed). Films get a minimum window + a larger tail so ad overruns / short EPG
+  gaps don't truncate them (`TV_FILM_MIN_MINUTES`, `TV_ARCHIVER_PAD_POST_FILM`).
 - **Preview / download / delete finished recordings.** The control plane mounts
   the recordings volume (`/volume1/tv/recordings:/recordings`) so the dashboard
   can serve a thumbnail (`/tv/thumb/{id}.jpg`), stream/download the mp4
@@ -84,6 +95,25 @@ Millet to the NAS on a schedule. It reuses the exact same queue/agent pattern:
 
 Recording is light (ffmpeg copy). See `services/tv-archiver/docs/tv-archiver.md`
 in the QOTools repo for the full design and NAS deploy steps.
+
+### Dashboard tabs
+
+The UI is grouped by purpose into top-level tabs (remembered in `localStorage`):
+
+- **Запись** — the recording world: live channel/recorder status, manual record,
+  the in-page player, finished recordings, and the unified «Программа» schedule.
+- **Превью** — an on-demand live frame per channel, so you can eyeball what's
+  airing before deciding to record. It's **pull-cheap**: the dashboard pings
+  `POST /api/tv/preview/ping` only while this tab is open; the agent grabs a fresh
+  frame (`grab_and_upload_preview` → `POST /api/tv/preview/{channel}`) *only* while
+  `preview_wanted` is set (heartbeat-carried), so no ffmpeg runs for nobody. Frames
+  are served from `/tv/preview/{channel}.jpg`; freshness is in `/api/tv/status`
+  (`channels.<c>.preview_age_sec`). Tunables: `TV_PREVIEW_TTL_SEC` (control),
+  `TV_PREVIEW_EVERY` (agent).
+- **ИИ** — the StyleTTS2 world: GPU-box status, training queue/history, Wake-on-LAN,
+  and rendered probe samples.
+
+New feature areas should slot in as another tab, keeping each surface focused.
 
 ## Deploy — NAS (control plane)
 
