@@ -1,0 +1,29 @@
+experiment_name: rvc_voice_clone
+seed: 42
+model_name: elvide
+dataset_path: /mnt/d/datasets/rvc/elvide
+sample_rate: 40000             # Ov2Super pretrain ships 40k; Applio resamples our 48k dataset down
+pretrained: ov2super_40k
+gpu: 0
+cpu_cores: 4
+noise_reduction: false         # source already clean (solo studio narration, no music bed)
+
+# Elvide Bekirova — the real TRK Millet audiobook narrator. Adult female,
+# warm low-mid, calm literary reading. ~1h curated from 28h across 11 books
+# (single verified speaker, min cosine 0.876 — see prep-audiobook.py gate).
+extract:
+  f0_method: rmvpe
+  hop_length: 128
+  embedder: contentvec
+
+train:
+  epochs: 300
+  batch_size: 16
+  save_every: 25
+  save_only_latest: false
+  cache_in_gpu: true
+  overtraining_detector: true
+  overtraining_threshold: 50
+
+# Inference hint: same-gender narration → pitch_shift 0, index_rate 0.5-0.75.
+# Cross-gender (male input → Elvide): pitch +12, formant ~1.0-1.1.

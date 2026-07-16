@@ -70,6 +70,8 @@ TV_PAD_PRE = int(os.environ.get("TV_ARCHIVER_PAD_PRE", "120"))
 TV_PAD_POST = int(os.environ.get("TV_ARCHIVER_PAD_POST", "120"))
 TV_PAD_POST_FILM = int(os.environ.get("TV_ARCHIVER_PAD_POST_FILM", "1200"))
 TV_FILM_MIN_MINUTES = int(os.environ.get("TV_FILM_MIN_MINUTES", "110"))
+TV_PAD_POST_CARTOON = int(os.environ.get("TV_ARCHIVER_PAD_POST_CARTOON", "600"))
+TV_CARTOON_MIN_MINUTES = int(os.environ.get("TV_CARTOON_MIN_MINUTES", "30"))
 
 db = DB(DATA / "app.sqlite")
 app = FastAPI(title="TTS control plane")
@@ -429,12 +431,15 @@ def tv_epg_record(r: EpgRecord):
         raise HTTPException(409, "already scheduled")
     start = datetime.fromisoformat(prog["start_iso"])
     end = datetime.fromisoformat(prog["end_iso"])
-    is_film = prog.get("category") == "film"
-    if is_film:                                 # min window + bigger tail (see planner)
-        floor_end = start + timedelta(minutes=TV_FILM_MIN_MINUTES)
+    cat = prog.get("category")                  # min window + bigger tail (see planner)
+    floor_min = (TV_FILM_MIN_MINUTES if cat == "film"
+                 else TV_CARTOON_MIN_MINUTES if cat == "cartoon" else 0)
+    if floor_min:
+        floor_end = start + timedelta(minutes=floor_min)
         if floor_end > end:
             end = floor_end
-    pad_post = TV_PAD_POST_FILM if is_film else TV_PAD_POST
+    pad_post = (TV_PAD_POST_FILM if cat == "film"
+                else TV_PAD_POST_CARTOON if cat == "cartoon" else TV_PAD_POST)
     w_start = start - timedelta(seconds=TV_PAD_PRE)
     duration_s = int((end - start).total_seconds()) + TV_PAD_PRE + pad_post
     jid = db.enqueue("record_tv", {
