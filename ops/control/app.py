@@ -51,6 +51,10 @@ for d in (LOGS, SAMPLES, SHOTS, PREVIEWS):
 # ffmpeg 24/7 for nobody. A ping keeps previews alive for PREVIEW_TTL seconds.
 PREVIEW_TTL = int(os.environ.get("TV_PREVIEW_TTL_SEC", "150"))
 _preview_wanted_until = 0.0
+# One-shot "please re-scrape the EPG now" flag, set by the dashboard's «Обновить
+# программу» button and consumed by the tv-agent's next poll (the control plane
+# can't run plan_control.py itself — no docker access — so the agent does it).
+_replan_requested = False
 TV_CHANNELS = ("atr", "millet")
 
 # TV recordings live on their own NAS volume, written by the tv-agent. Mount the
@@ -150,6 +154,11 @@ class Done(BaseModel):
 
 @app.post("/api/jobs/{job_id}/done", dependencies=[Depends(auth)])
 def job_done(job_id: int, d: Done):
+    if d.status == "no_signal":
+        # The stream never came live in the window — not a real recording. Drop the
+        # job so it doesn't clutter the dashboard with a meaningless error tile.
+        db.x("DELETE FROM jobs WHERE id=?", (job_id,))
+        return {"ok": True, "dropped": True}
     db.finish(job_id, d.status, d.error)
     job = db.one("SELECT * FROM jobs WHERE id=?", (job_id,))
     icon = "✅" if d.status == "done" else "❌"
@@ -345,6 +354,26 @@ def preview_wanted_flag():
     """The agent polls this cheaply so it can start grabbing frames within seconds
     of the tab opening (rather than waiting for its next 30 s heartbeat)."""
     return {"wanted": time.time() < _preview_wanted_until}
+
+
+@app.post("/api/tv/replan")
+def request_replan():
+    """Dashboard «Обновить программу» button: ask the tv-agent to re-scrape the
+    EPG (plan_control.py) now. No auth — it only sets a one-shot flag, leaks
+    nothing. The control plane can't run plan_control.py itself (no docker), so
+    the agent picks this up on its next poll."""
+    global _replan_requested
+    _replan_requested = True
+    return {"ok": True}
+
+
+@app.get("/api/tv/replan/wanted")
+def replan_wanted_flag():
+    """The tv-agent polls this; reading CONSUMES the flag so the replan fires
+    exactly once per button press."""
+    global _replan_requested
+    wanted, _replan_requested = _replan_requested, False
+    return {"wanted": wanted}
 
 
 @app.post("/api/tv/preview/{channel}", dependencies=[Depends(auth)])
