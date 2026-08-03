@@ -4,6 +4,8 @@ services:
     build: .
     container_name: tts-control
     restart: unless-stopped
+    init: true                     # tini as PID 1: forwards SIGTERM so stops are clean
+    stop_grace_period: 30s         # give uvicorn time to exit 0 (no "abnormal stop" alert)
     ports:
       - "8080:8080"
     # WoL magic packets must go out on the LAN broadcast domain. If the bridge
@@ -14,7 +16,14 @@ services:
       # dashboard can preview / download / delete them. Same path as the
       # tv-agent's TV_ARCHIVER_OUTPUT so job.progress.file resolves 1:1.
       - /volume1/tv/recordings:/recordings
+      # Live code: uvicorn --reload hot-reloads synced changes IN PLACE, so a code
+      # deploy needs no container restart (and no Synology "container stopped" alert).
+      - /volume1/tts/control:/app
     environment:
       - TV_RECORDINGS=/recordings
     env_file:
       - .env
+    # --reload watches only *.py by default, so app.py edits hot-reload while
+    # static/index.html is served live from disk (no reload, no restart).
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080",
+              "--reload", "--reload-dir", "/app"]

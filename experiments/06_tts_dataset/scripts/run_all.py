@@ -15,7 +15,7 @@ from pathlib import Path
 
 from unidecode import unidecode
 
-BOOKS_DIR = "/Volumes/T9/Drive/MyD/Books/Qirimtatar/sevil-books"
+BOOKS_DIR = "/Volumes/T9/AnaYurt/Books/Qirimtatar/sevil-books"
 HERE = Path(__file__).resolve().parent
 OUT_ROOT = HERE.parent
 AUDIO_EXT = (".wav", ".mp3", ".m4a", ".flac")

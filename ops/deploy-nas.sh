@@ -4,18 +4,20 @@
 #
 # Run this ON the NAS (the Docker socket is root-only, so sudo is required):
 #
-#     sudo bash /volume1/tts/deploy.sh              # apply code changes (fast)
-#     sudo bash /volume1/tts/deploy.sh --replan     # + rebuild the recording schedule
-#     sudo bash /volume1/tts/deploy.sh --rebuild-tv # + full tv-archiver image rebuild
+#     sudo bash /volume1/tts/deploy.sh                 # apply synced code (NO container restart)
+#     sudo bash /volume1/tts/deploy.sh --replan        # + rebuild the recording schedule
+#     sudo bash /volume1/tts/deploy.sh --apply-compose # recreate to apply compose changes (mounts, etc.)
+#     sudo bash /volume1/tts/deploy.sh --rebuild       # full image rebuild (deps/Dockerfile changed)
+#
+# Both containers run their code from a bind-mounted host dir, so a normal code
+# deploy NEVER stops a container (no Synology "container stopped" alerts):
+#   • control plane runs uvicorn --reload → synced .py hot-reloads in place;
+#     static/index.html is served live from disk (no reload needed).
+#   • the tv-agent reloads via SIGHUP (re-exec) — unless a recording is running,
+#     which is never interrupted.
 #
 # Files are synced to the NAS from the Mac beforehand; this script only APPLIES
-# what is already on disk:
-#   1. rebuilds the control-plane container  (app.py + static UI)
-#   2. pushes updated tv-archiver python into its running container (no slow
-#      Playwright reinstall), and restarts the agent — UNLESS a recording is in
-#      progress, in which case it never interrupts it.
-#   3. with --replan: cancels queued recordings and re-runs the planner so the
-#      whole schedule is rebuilt with the CURRENT rules (film windows, titles…).
+# what is already on disk.
 #
 set -euo pipefail
 export PATH=/usr/local/bin:/usr/bin:/bin:$PATH
@@ -26,23 +28,25 @@ TV_CONTAINER=tv-archiver
 API=http://localhost:8080
 
 REPLAN=0
-REBUILD_TV=0
+APPLY_COMPOSE=0
+REBUILD=0
 for a in "${@:-}"; do
   case "$a" in
-    "")            ;;
-    --replan)      REPLAN=1 ;;
-    --rebuild-tv)  REBUILD_TV=1 ;;
-    *) echo "unknown flag: $a  (use --replan and/or --rebuild-tv)"; exit 2 ;;
+    "")               ;;
+    --replan)         REPLAN=1 ;;
+    --apply-compose)  APPLY_COMPOSE=1 ;;
+    --rebuild)        REBUILD=1 ;;
+    *) echo "unknown flag: $a  (use --replan, --apply-compose, --rebuild)"; exit 2 ;;
   esac
 done
 
 log(){ printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
 
-retry_build(){  # retry_build <compose-args...> — Docker Hub throws transient 502s
+retry(){  # retry <cmd...> — Docker Hub throws transient 502s
   local ok=0 i
   for i in 1 2 3; do
-    if docker compose "$@" up -d --build; then ok=1; break; fi
-    echo "  build attempt $i failed, retrying in 5s…"; sleep 5
+    if "$@"; then ok=1; break; fi
+    echo "  attempt $i failed, retrying in 5s…"; sleep 5
   done
   [ "$ok" = 1 ]
 }
@@ -53,35 +57,33 @@ running_recordings(){
     2>/dev/null || echo 0
 }
 
-# ---------------------------------------------------------------- 1. control plane
-log "Rebuilding control plane (app.py + UI)…"
-cd "$CONTROL_DIR"
-retry_build || { echo "control-plane rebuild FAILED — aborting."; exit 1; }
-
-# ---------------------------------------------------------------- 2. tv-archiver
-if [ "$REBUILD_TV" = 1 ]; then
-  log "Full tv-archiver image rebuild (deps/Dockerfile changed)…"
-  cd "$TV_APP"
-  retry_build -f docker-compose.nas.yml || { echo "tv-archiver rebuild FAILED."; exit 1; }
+if [ "$REBUILD" = 1 ]; then
+  # Deps/Dockerfile changed → rebuild images (recreates containers, one-time alert).
+  log "Rebuilding control-plane image…"
+  cd "$CONTROL_DIR"; retry docker compose up -d --build || { echo "control rebuild FAILED"; exit 1; }
+  log "Rebuilding tv-archiver image…"
+  cd "$TV_APP"; retry docker compose -f docker-compose.nas.yml up -d --build || { echo "tv rebuild FAILED"; exit 1; }
+elif [ "$APPLY_COMPOSE" = 1 ]; then
+  # Compose changed (mounts/command/init) → recreate from existing images (no build,
+  # fast). One-time; needed to switch a container onto the bind-mount + reload model.
+  log "Applying compose changes: recreating containers (existing images)…"
+  cd "$CONTROL_DIR"; retry docker compose up -d || { echo "control recreate FAILED"; exit 1; }
+  cd "$TV_APP"; retry docker compose -f docker-compose.nas.yml up -d || { echo "tv recreate FAILED"; exit 1; }
 else
-  log "Updating tv-archiver code in the running container (no rebuild)…"
-  n=0
-  for f in "$TV_APP"/*.py; do
-    docker cp "$f" "$TV_CONTAINER:/app/$(basename "$f")"; n=$((n+1))
-  done
-  echo "  copied $n python files"
+  # Steady state: apply synced code WITHOUT restarting anything.
+  log "Applying code — control plane (uvicorn --reload, no restart)…"
+  echo "  control code is bind-mounted; synced .py hot-reloads, index.html serves live. Nothing to restart."
+
+  log "Applying code — tv-agent (SIGHUP reload, no restart)…"
   rec=$(running_recordings)
   if [ "${rec:-0}" -gt 0 ]; then
-    echo "  ⚠ $rec recording(s) in progress — NOT restarting the agent (would abort them)."
-    echo "    Planner/classifier changes are already live (run per exec)."
-    echo "    Agent/recorder changes will apply after the recording finishes, or re-run this later."
+    echo "  ⚠ $rec recording(s) in progress — deferring agent reload (won't interrupt it)."
+    echo "    Re-run this after it finishes to pick up agent/recorder changes."
   else
-    docker restart "$TV_CONTAINER" >/dev/null
-    echo "  agent restarted — recorder/agent changes are live"
+    docker kill -s HUP "$TV_CONTAINER" >/dev/null && echo "  agent reloaded in place (re-exec)"
   fi
 fi
 
-# ---------------------------------------------------------------- 3. re-plan
 if [ "$REPLAN" = 1 ]; then
   log "Rebuilding the schedule with current rules…"
   ids=$(curl -s "$API/api/tv/status" | python3 -c \
